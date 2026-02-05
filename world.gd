@@ -4,9 +4,10 @@ extends Node3D
 
 # This is used to determine the size of the world in meters, if Infinite World Generation isn't 
 # turned on. If it is on, we need to ignore this.
-@export var world_size: Vector3 = Vector3(16, 16, 16)
+@export var world_vector: int = 64
+@export var world_size: Vector3 = Vector3(world_vector, world_vector, world_vector)
 # Cutoff defines how dense the random cubes are. Higher numbers equate to less density.
-@export var cutoff: float = 0.5
+@export_range(-1, 1) var cutoff: float = 0.5
 
 # This references a node that exists in the World scene; once we procedurally generate cubes, we should
 # delete that node and this variable.
@@ -14,16 +15,23 @@ extends Node3D
 
 
 func _ready():
+	# Get Mouse Mode from the Settings Singleton
+	Input.mouse_mode = Settings.mouse_mode
 	generate_terrain_finite()
 
+func _unhandled_input(event: InputEvent):
+	# If the user presses Esc, quit immediately.
+	if event.is_action_pressed("ui_cancel"):
+		get_tree().quit()
+
 func generate_terrain_finite():
-	var random_generator = RandomNumberGenerator.new()
+	var random_generator = FastNoiseLite.new()
 	
 	for x in range(world_size.x):
-		for y in range(world_size.y):
-			for z in range(world_size.z):
+		for z in range(world_size.z):
+			for y in range(world_size.y):
 				# Generates a number between 0.0 and 1.0.
-				var random = random_generator.randf()
+				var random = random_generator.get_noise_3d(x, z, y)
 				# If that random number is greater than cutoff (defined in the header), place a cube.
 				if random > cutoff:
 					# Duplicate that default cube and get ready to move it to the position we just checked.

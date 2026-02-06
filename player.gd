@@ -8,6 +8,7 @@ extends CharacterBody3D
 var flying: bool = false
 
 const SPEED = 5.0
+var running = 0
 const JUMP_VELOCITY = 4.5
 
 
@@ -22,9 +23,15 @@ func _physics_process(delta: float) -> void:
 	# Handle jump.
 	if Input.is_action_just_pressed("ui_accept") and is_on_floor():
 		velocity.y = JUMP_VELOCITY
+		
 	# Handle toggling flying on and off.
 	if Input.is_action_just_pressed("toggle_flying"):
 		flying = !flying
+	
+	# Handle running.
+	if Input.is_action_just_pressed("run"):
+		running = 5
+	
 
 	# Get the input direction and handle the movement/deceleration.
 	# As good practice, you should replace UI actions with custom gameplay actions.
@@ -32,10 +39,10 @@ func _physics_process(delta: float) -> void:
 	var direction := (player_eyes.global_transform.basis * Vector3(input_dir.x, 0, input_dir.y)).normalized()
 	if direction:
 		if flying:
-				velocity = direction * SPEED
+				velocity = direction * SPEED * running
 		else:
-			velocity.x = direction.x * SPEED
-			velocity.z = direction.z * SPEED
+			velocity.x = direction.x * SPEED  * running
+			velocity.z = direction.z * SPEED * running
 	else:
 		velocity.x = move_toward(velocity.x, 0, SPEED)
 		velocity.z = move_toward(velocity.z, 0, SPEED)

@@ -3,6 +3,16 @@
 [ext_resource type="Script" uid="uid://bwreor0aqspb4" path="res://world.gd" id="1_f3sb7"]
 [ext_resource type="PackedScene" uid="uid://d34uvd7dyk6ad" path="res://player.tscn" id="2_fj7yv"]
 
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_fj7yv"]
+albedo_color = Color(0, 0.5406329, 1.1551381e-06, 1)
+
+[sub_resource type="BoxMesh" id="BoxMesh_fj7yv"]
+material = SubResource("StandardMaterial3D_fj7yv")
+
+[sub_resource type="MultiMesh" id="MultiMesh_fj7yv"]
+transform_format = 1
+mesh = SubResource("BoxMesh_fj7yv")
+
 [node name="World" type="Node3D" unique_id=666173279]
 script = ExtResource("1_f3sb7")
 
@@ -17,3 +27,6 @@ transform = Transform3D(0.9514441, 0.25747705, -0.16870014, 0, 0.5480451, 0.8364
 
 [node name="Player" parent="." unique_id=165270570 instance=ExtResource("2_fj7yv")]
 transform = Transform3D(-0.9760878, 0, 0.21737674, 0, 1, 0, -0.21737674, 0, -0.9760878, 22.607649, 66.196014, 8.888941)
+
+[node name="MultiMeshInstance3D" type="MultiMeshInstance3D" parent="." unique_id=1317214185]
+multimesh = SubResource("MultiMesh_fj7yv")

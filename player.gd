@@ -8,7 +8,7 @@ extends CharacterBody3D
 var flying: bool = false
 
 const SPEED = 5.0
-var running = 0
+var running = 1
 const JUMP_VELOCITY = 4.5
 
 
@@ -29,8 +29,10 @@ func _physics_process(delta: float) -> void:
 		flying = !flying
 	
 	# Handle running.
-	if Input.is_action_just_pressed("run"):
+	if Input.is_action_pressed("run"):
 		running = 5
+	else:
+		running = 1
 	
 
 	# Get the input direction and handle the movement/deceleration.

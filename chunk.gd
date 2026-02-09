@@ -28,8 +28,9 @@ var cube_vertices: Array[Vector3] = [
 	Vector3(-0.5, 0.5, -0.5) # 7, Top Left Back
 ]
 
-# Allows us to add data "per face" according to the video. I think this is so we don't
-# have to say "Face.1" and stuff.
+# Allows us to add data "per face" according to the video. This is so we don't
+# have to say "Face.1" and stuff; we refer to Face.BOTTOM and the others in face_indices, _normals,
+# and the _colors dictionaries. We also refer to them in the generate_mesh() function.
 enum Face{BOTTOM, FRONT, RIGHT, TOP, LEFT, BACK}
 
 # Using the Vertice Numbers in cube_vertices, decide which face consists of which vertices.
@@ -66,6 +67,7 @@ var face_colors: Dictionary[Face, Color] = {
 
 func _ready() -> void:
 	surface_array.resize(Mesh.ARRAY_MAX)
+	mesh_instance.mesh = ArrayMesh.new()
 
 # I think this is where we determine the order in which chunks get generated. We might be able to
 # define the pattern/shape by which chunks are generated here.
@@ -77,7 +79,7 @@ func generate_data(chunk_size: int, max_height: int, noise: Noise, color_array:A
 			# I.E. new_position = 1, 0, 2 is West 1, Up 0, North 2. Y = 0 here because
 			# we start at the bottom of each chunk and generate upwards? Maybe?
 			var new_position = position + Vector3(x, 0, z)
-			
+
 			var rand = ((
 				noise.get_noise_2d(new_position.x, new_position.z) + 0.5 * 
 				noise.get_noise_2d(new_position.x * 2, new_position.z * 2) + 0.25 * 
@@ -140,7 +142,6 @@ func add_face(face: Face, vertice_position: Vector3, color: Color) -> void:
 # Takes the data that we generated and puts it in an array; I.E. the vertices, normals, and colors
 # we generated previously.
 func commit_mesh():
-	print("Committing Mesh...")
 	# I believe this takes the values assigned to Vertices, Normals, and Colors, and writes
 	# them out into the Surface Array. Essentially, it assigns those properties (which we
 	# generate elsewhere) to the terrain.

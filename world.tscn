@@ -2,11 +2,10 @@
 
 [ext_resource type="Script" uid="uid://bwreor0aqspb4" path="res://world.gd" id="1_f3sb7"]
 [ext_resource type="PackedScene" uid="uid://d34uvd7dyk6ad" path="res://player.tscn" id="2_fj7yv"]
-[ext_resource type="PackedScene" uid="uid://xbn4ypmc1oll" path="res://chunk.tscn" id="3_tlwt5"]
+[ext_resource type="PackedScene" uid="uid://4yfa4ciqrdqm" path="res://chunk_manager.tscn" id="3_tlwt5"]
 
 [node name="World" type="Node3D" unique_id=666173279]
 script = ExtResource("1_f3sb7")
-colors = Array[Color]([Color(0.5958281, 0.5958281, 0.5958281, 1), Color(0.6645463, 0.6150771, 0.79524636, 1), Color(0.8250676, 0.6845527, 0.55470043, 1), Color(0.2479, 0.37, 0.2479, 1), Color(0.27, 0.27, 0.27, 1)])
 
 [node name="DefaultCube" type="CSGBox3D" parent="." unique_id=720615074]
 use_collision = true
@@ -20,4 +19,4 @@ transform = Transform3D(0.9514441, 0.25747705, -0.16870014, 0, 0.5480451, 0.8364
 [node name="Player" parent="." unique_id=165270570 instance=ExtResource("2_fj7yv")]
 transform = Transform3D(-0.9760878, 0, 0.21737674, 0, 1, 0, -0.21737674, 0, -0.9760878, 22.607649, 66.196014, 8.888941)
 
-[node name="Chunk" parent="." unique_id=1147404096 instance=ExtResource("3_tlwt5")]
+[node name="ChunkManager" parent="." unique_id=1812560747 instance=ExtResource("3_tlwt5")]

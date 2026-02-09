@@ -1,0 +1,17 @@
+[gd_scene format=3 uid="uid://xbn4ypmc1oll"]
+
+[ext_resource type="Script" uid="uid://dl7w33xqehnw0" path="res://chunk.gd" id="1_kdh3y"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_kdh3y"]
+vertex_color_use_as_albedo = true
+
+[sub_resource type="ArrayMesh" id="ArrayMesh_kdh3y"]
+
+[node name="Chunk" type="StaticBody3D" unique_id=1147404096]
+script = ExtResource("1_kdh3y")
+material = SubResource("StandardMaterial3D_kdh3y")
+
+[node name="TerrainCollision" type="CollisionShape3D" parent="." unique_id=1799023280]
+
+[node name="TerrainMesh" type="MeshInstance3D" parent="." unique_id=1552800747]
+mesh = SubResource("ArrayMesh_kdh3y")

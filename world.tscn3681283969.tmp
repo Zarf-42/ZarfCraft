@@ -6,7 +6,8 @@
 
 [node name="World" type="Node3D" unique_id=666173279]
 script = ExtResource("1_f3sb7")
-colors = Array[Color]([Color(0.5958281, 0.5958281, 0.5958281, 1), Color(0.6645463, 0.6150771, 0.79524636, 1), Color(0.8250676, 0.6845527, 0.55470043, 1), Color(0.2479, 0.37, 0.2479, 1), Color(0.27, 0.27, 0.27, 1)])
+world_vector = null
+cutoff = null
 
 [node name="DefaultCube" type="CSGBox3D" parent="." unique_id=720615074]
 use_collision = true

@@ -6,6 +6,7 @@ extends CharacterBody3D
 @onready var player_eyes: Camera3D = $Head/PlayerEyes
 @onready var spawn_altitude_cast: RayCast3D = $SpawnAltitudeCast
 @onready var player: CharacterBody3D = $"."
+@onready var chunk_size: int = Settings.chunk_size
 
 var flying: bool = false
 
@@ -13,11 +14,8 @@ const SPEED = 5.0
 var running = 1
 const JUMP_VELOCITY = 4.5
 
-func _ready():
-	await $"../".ready
-
 func _physics_process(delta: float) -> void:
-	# Add the gravity.
+	# Add gravity, if the player is not flying.
 	if not is_on_floor():
 		if flying:
 			velocity = Vector3.ZERO
@@ -64,12 +62,11 @@ func _unhandled_input(event: InputEvent) -> void:
 		player_eyes.rotation.x = clamp(player_eyes.rotation.x, deg_to_rad(-80), deg_to_rad(80))
 
 func spawn():
-	var random_location_x = randf_range(0.0, 32.0)
-	var random_location_z = randf_range(0.0, 32.0)
+	# Randomizes the horizontal location that the player spawns in, within the first chunk.
+	var random_location_x = randf_range(0.0, chunk_size)
+	var random_location_z = randf_range(0.0, chunk_size)
 	player.global_position = Vector3(random_location_x, player.global_position.y, random_location_z)
-	print("Player position was ", player.global_position)
+	# Once the player is initially spawned, we immediately move them so they are standing on the terrain.
+	# We get the location of the terrain with this RayCast3D.
 	spawn_altitude_cast.force_raycast_update()
-	print("Colliding with ", spawn_altitude_cast.get_collider())
-	print("Terrain is at y ", spawn_altitude_cast.get_collision_point().y)
 	player.global_position.y = spawn_altitude_cast.get_collision_point().y
-	print("Player position is now ", player.global_position)

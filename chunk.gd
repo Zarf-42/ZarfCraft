@@ -162,13 +162,3 @@ func commit_mesh():
 		# to spawn at.
 		print("Spawn chunk is ready.")
 		EventBus.spawn_chunk_is_ready.emit()
-	
-	# Now we have a chunk's mesh and its collision mesh. Next, we need to add it to
-	# the correct collision layer, so we can use a RayCast3D from the player to find what coordinate
-	# the ground below them is when they spawn. This will allow us to set the player right
-	# on the ground when they spawn. All we need to do here is get the StaticMesh3D we just
-	# generated, and add it to the correct Collision Layer. Everything else will be handled in the 
-	# player spawn() function.
-	
-	var _static_chunk = mesh_instance.get_parent()
-	# 1/17/2026: It appears that I handled this elsewhere. We assign the Collision Layer elsewhere?

@@ -5,7 +5,7 @@ class_name ChunkManager extends Node
 # This is used to determine the size of the world in meters, if Infinite World Generation isn't 
 # turned on.
 @export var world_vector: int = 128
-@export var chunk_size: int = 32
+@export var chunk_size: int = Settings.chunk_size
 @export var world_size: Vector3 = Vector3(world_vector, world_vector, world_vector)
 
 # Cutoff defines how dense the random cubes are. Higher numbers equate to less density.

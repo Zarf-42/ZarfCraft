@@ -17,6 +17,7 @@ config/icon="res://icon.svg"
 
 [autoload]
 
+EventBus="*uid://bplsoqx7kyrd7"
 Settings="*uid://chydrt4ei17s"
 
 [editor]

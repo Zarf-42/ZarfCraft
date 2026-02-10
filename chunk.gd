@@ -155,6 +155,14 @@ func commit_mesh():
 	
 	collision_shape.shape = mesh_instance.mesh.create_trimesh_shape()
 	
+	if mesh_instance.global_position == Vector3(0.0, 32.0, 0.0):
+		print(mesh_instance.global_position)
+		# Send a signal saying that the spawn point is ready. This signal is defined
+		# in the EventBus singleton. We will use it to tell the player what altitude
+		# to spawn at.
+		print("Spawn chunk is ready.")
+		EventBus.spawn_chunk_is_ready.emit()
+	
 	# Now we have a chunk's mesh and its collision mesh. Next, we need to add it to
 	# the correct collision layer, so we can use a RayCast3D from the player to find what coordinate
 	# the ground below them is when they spawn. This will allow us to set the player right

@@ -1,4 +1,4 @@
-class_name ChunkManagher extends Node
+class_name ChunkManager extends Node
 
 # This determines if we use infinite word generation size or finite.
 @export var finite_world: bool = true
@@ -20,6 +20,11 @@ var number_of_chunks: Vector3
 var chunk_class = preload("res://chunk.tscn")
 
 func _ready():
+	# This makes it so the Signal emission at the end of generate_chunks() doesn't fire until the
+	# World script is loaded. If we don't have these lines, that signal emits before the connection
+	# is made in World's script. Await goes and gets the 
+	await $"../".ready
+	print("Generator ready, generating terrain...")
 	#random_generator.seed = seed
 	if finite_world == true:
 		generate_terrain_finite()
@@ -45,8 +50,7 @@ func generate_chunks():
 				add_child(new_chunk)
 				new_chunk.generate_data(chunk_size, world_size.y, random_generator, colors)
 				new_chunk.generate_mesh()
-				if new_chunk.position == Vector3(0.0, 0.0, 0.0):
-					pass
-					# print("Spawn point ready.")
-					# Send a signal when the chunk at 0,0 has been generated.
-					# This signal should tell the player what altitude to spawn at.
+				# I thought this is where we'd want to call the Player Spawn function, but this
+				# doesn't actually place the chunk in the world. Looking for the terrain's altitude
+				# from here returns 0.0 because there is no terrain in the world yet.
+				# Instead, we'll call it from chunk.gd, under commit_mesh().

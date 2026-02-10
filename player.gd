@@ -4,6 +4,8 @@ extends CharacterBody3D
 @export var mouse_sensitivity: float = 0.01
 @onready var head: Node3D = $Head
 @onready var player_eyes: Camera3D = $Head/PlayerEyes
+@onready var spawn_altitude_cast: RayCast3D = $SpawnAltitudeCast
+@onready var player: CharacterBody3D = $"."
 
 var flying: bool = false
 
@@ -11,6 +13,8 @@ const SPEED = 5.0
 var running = 1
 const JUMP_VELOCITY = 4.5
 
+func _ready():
+	await $"../".ready
 
 func _physics_process(delta: float) -> void:
 	# Add the gravity.
@@ -58,3 +62,14 @@ func _unhandled_input(event: InputEvent) -> void:
 		head.rotate_y(-relative.x)
 		player_eyes.rotate_x(-relative.y)
 		player_eyes.rotation.x = clamp(player_eyes.rotation.x, deg_to_rad(-80), deg_to_rad(80))
+
+func spawn():
+	var random_location_x = randf_range(0.0, 32.0)
+	var random_location_z = randf_range(0.0, 32.0)
+	player.global_position = Vector3(random_location_x, player.global_position.y, random_location_z)
+	print("Player position was ", player.global_position)
+	spawn_altitude_cast.force_raycast_update()
+	print("Colliding with ", spawn_altitude_cast.get_collider())
+	print("Terrain is at y ", spawn_altitude_cast.get_collision_point().y)
+	player.global_position.y = spawn_altitude_cast.get_collision_point().y
+	print("Player position is now ", player.global_position)

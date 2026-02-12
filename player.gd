@@ -1,7 +1,7 @@
 extends CharacterBody3D
 
 # Radians per Pixel; needs VERY small values
-@export var mouse_sensitivity: float = 0.01
+@export var mouse_sensitivity: float = Settings.mouse_sensitivity / 100
 @onready var head: Node3D = $Head
 @onready var player_eyes: Camera3D = $Head/PlayerEyes
 @onready var spawn_altitude_cast: RayCast3D = $SpawnAltitudeCast

@@ -56,18 +56,22 @@ var face_normals: Dictionary[Face, Vector3] = {
 	Face.TOP: Vector3(0, 1, 0)
 }
 
-var face_colors: Dictionary[Face, Color] = {
-	Face.BOTTOM: Color.RED,
-	Face.FRONT: Color.ORANGE,
-	Face.RIGHT: Color.YELLOW,
-	Face.TOP: Color.GREEN,
-	Face.LEFT: Color.BLUE,
-	Face.BACK: Color.PURPLE
-}
+#var face_colors: Dictionary[Face, Color] = {
+	#Face.BOTTOM: Color.RED,
+	#Face.FRONT: Color.ORANGE,
+	#Face.RIGHT: Color.YELLOW,
+	#Face.TOP: Color.GREEN,
+	#Face.LEFT: Color.BLUE,
+	#Face.BACK: Color.PURPLE
+#}
 
 func _ready() -> void:
 	surface_array.resize(Mesh.ARRAY_MAX)
 	mesh_instance.mesh = ArrayMesh.new()
+	
+	if voxels.is_empty(): return
+	
+	commit_mesh()
 
 # I think this is where we determine the order in which chunks get generated. We might be able to
 # define the pattern/shape by which chunks are generated here.
@@ -78,7 +82,7 @@ func generate_data(chunk_size: int, max_height: int, noise: Noise, color_array:A
 			# Also I think we generated chunks from the bottom up.
 			# I.E. new_position = 1, 0, 2 is West 1, Up 0, North 2. Y = 0 here because
 			# we start at the bottom of each chunk and generate upwards? Maybe?
-			var new_position = position + Vector3(x, 0, z)
+			var new_position = global_position + Vector3(x, 0, z)
 
 			var rand = ((
 				noise.get_noise_2d(new_position.x, new_position.z) + 0.5 * 
@@ -112,8 +116,6 @@ func generate_mesh():
 			add_face(Face.TOP, position, color)
 		if not has_neighbor(voxels, Face.BOTTOM, position):
 			add_face(Face.BOTTOM, position, color)
-		
-	commit_mesh()
 
 func has_neighbor(data: Dictionary[Vector3, Color], face: Face, position: Vector3):
 	# Somehow this is supposed to see if there's a block next to this face, so we can skip rendering

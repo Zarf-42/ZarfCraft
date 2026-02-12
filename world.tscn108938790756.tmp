@@ -41,7 +41,7 @@ script = ExtResource("1_f3sb7")
 environment = SubResource("Environment_tlwt5")
 
 [node name="ChunkManager" parent="." unique_id=1812560747 instance=ExtResource("3_tlwt5")]
-colors = Array[Color]([Color(0.26450002, 0.69, 0.1794, 1), Color(0.34, 0.68, 0.48733336, 1), Color(0.8392157, 0.3764706, 0, 1), Color(0.88, 0.71103996, 0.5632, 1), Color(0.96285766, 0.49747592, 0.3820687, 1), Color(0.9843137, 0.1254902, 0.22745098, 1), Color(0.68, 0.68, 0.68, 1), Color(0.083392, 0.083392, 0.08339202, 1)])
+colors = Array[Color]([Color(0.26450002, 0.69, 0.1794, 1), Color(0.028799972, 0.96, 0.43232, 1), Color(0.84, 0.11759999, 0.11759999, 1), Color(0.88, 0.71103996, 0.5632, 1), Color(0.96285766, 0.49747592, 0.3820687, 1), Color(0.9825327, 0.344443, 0.3630308, 1), Color(0.68, 0.68, 0.68, 1), Color(0.083392, 0.083392, 0.08339202, 1)])
 
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="." unique_id=1211244638]
 transform = Transform3D(0.9514441, 0.25747705, -0.16870014, 0, 0.5480451, 0.8364488, 0.30782163, -0.79583424, 0.52143425, 0, 2.4054737, 4.6098814)

@@ -10,7 +10,7 @@ func _ready():
 	# Get Mouse Mode from the Settings Singleton
 	Input.mouse_mode = Settings.mouse_mode
 	print("World Scene is ready, calling terrain generator...")
-	EventBus.spawn_chunk_is_ready.connect(self._spawn)
+	#EventBus.spawn_chunk_is_ready.connect(self._spawn)
 
 func _unhandled_input(event: InputEvent):
 	# If the user presses Esc, quit immediately.

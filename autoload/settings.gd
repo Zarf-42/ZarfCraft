@@ -7,11 +7,15 @@ var mouse_mode = Input.MOUSE_MODE_CAPTURED
 # but until I've eliminated any other Typed Arrays relating to Nodes, this needs to stay as it is.
 #var threads: Array[Thread]
 var threads: Array = []
-@export var chunk_render_distance: int = 8
-@export var mouse_sensitivity: float = 0.3
+@export var chunk_render_distance: int = 32
+@export var mouse_sensitivity: float = 0.27
+var pause_state: bool = false
 
 func _ready():
 	threads = register_threads(get_threads())
+	# Testing on 2 threads
+	#threads = register_threads(2)
+	#print("Now we have %s threads." %[threads.size()])
 
 func get_threads():
 	var availableThreads = OS.get_processor_count()

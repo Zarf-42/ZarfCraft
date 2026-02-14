@@ -13,6 +13,11 @@ var flying: bool = false
 const SPEED = 5.0
 var running = 1
 const JUMP_VELOCITY = 4.5
+var paused = Settings.pause_state
+
+func _ready():
+	process_mode = Node.PROCESS_MODE_PAUSABLE
+	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
 func _physics_process(delta: float) -> void:
 	# Add gravity, if the player is not flying.
@@ -35,7 +40,6 @@ func _physics_process(delta: float) -> void:
 		running = 5
 	else:
 		running = 1
-	
 
 	# Get the input direction and handle the movement/deceleration.
 	# As good practice, you should replace UI actions with custom gameplay actions.

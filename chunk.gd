@@ -73,22 +73,21 @@ func _ready() -> void:
 	
 	commit_mesh()
 
-# I think this is where we determine the order in which chunks get generated. We might be able to
-# define the pattern/shape by which chunks are generated here.
-func generate_data(chunk_size: int, max_height: int, noise: Noise, color_array:Array[Color]):
+# This function determines the position of each block in a given chunk.
+func generate_data(chunk_size: int, max_height: int, noise: Noise, color_array: Array[Color]):
 	for x in range(chunk_size):
 		for z in range(chunk_size):
 			# New Position, I think, is supposed to be where the next chunk generates.
 			# Also I think we generated chunks from the bottom up.
 			# I.E. new_position = 1, 0, 2 is West 1, Up 0, North 2. Y = 0 here because
 			# we start at the bottom of each chunk and generate upwards? Maybe?
-			var new_position = global_position + Vector3(x, 0, z)
+			#print("Global Position: ", global_position)
+			var global_pos = transform.origin + Vector3(x, 0, z)
 
 			var rand = ((
-				noise.get_noise_2d(new_position.x, new_position.z) + 0.5 * 
-				noise.get_noise_2d(new_position.x * 2, new_position.z * 2) + 0.25 * 
-				noise.get_noise_2d(new_position.x * 4, new_position.z * 4)) / 1.75 + 1) / 2
-
+				noise.get_noise_2d(global_pos.x, global_pos.z) + 0.5 * 
+				noise.get_noise_2d(global_pos.x * 2, global_pos.z * 2) + 0.25 * 
+				noise.get_noise_2d(global_pos.x * 4, global_pos.z * 4)) / 1.75 + 1) / 2
 			var rand_p = pow(rand, 2.1)
 			var height = max_height * rand_p
 
@@ -100,22 +99,22 @@ func generate_data(chunk_size: int, max_height: int, noise: Noise, color_array:A
 
 func generate_mesh():
 	if voxels.is_empty(): return
-	for position in voxels:
-		var color = voxels[position]
+	for pos in voxels:
+		var color = voxels[pos]
 		# These If statements help optimize our terrain's meshes. If a cube has a neighbor, we don't
 		# render the face that touches that neighbor. This prevents invisible faces from being computed.
-		if not has_neighbor(voxels, Face.FRONT, position):
-			add_face(Face.FRONT, position, color)
-		if not has_neighbor(voxels, Face.BACK, position):
-			add_face(Face.BACK, position, color)
-		if not has_neighbor(voxels, Face.LEFT, position):
-			add_face(Face.LEFT, position, color)
-		if not has_neighbor(voxels, Face.RIGHT, position):
-			add_face(Face.RIGHT, position, color)
-		if not has_neighbor(voxels, Face.TOP, position):
-			add_face(Face.TOP, position, color)
-		if not has_neighbor(voxels, Face.BOTTOM, position):
-			add_face(Face.BOTTOM, position, color)
+		if not has_neighbor(voxels, Face.FRONT, pos):
+			add_face(Face.FRONT, pos, color)
+		if not has_neighbor(voxels, Face.BACK, pos):
+			add_face(Face.BACK, pos, color)
+		if not has_neighbor(voxels, Face.LEFT, pos):
+			add_face(Face.LEFT, pos, color)
+		if not has_neighbor(voxels, Face.RIGHT, pos):
+			add_face(Face.RIGHT, pos, color)
+		if not has_neighbor(voxels, Face.TOP, pos):
+			add_face(Face.TOP, pos, color)
+		if not has_neighbor(voxels, Face.BOTTOM, pos):
+			add_face(Face.BOTTOM, pos, color)
 
 func has_neighbor(data: Dictionary[Vector3, Color], face: Face, position: Vector3):
 	# Somehow this is supposed to see if there's a block next to this face, so we can skip rendering
@@ -158,9 +157,9 @@ func commit_mesh():
 	collision_shape.shape = mesh_instance.mesh.create_trimesh_shape()
 	
 	if mesh_instance.global_position == Vector3(0.0, 32.0, 0.0):
-		print(mesh_instance.global_position)
+		#print(mesh_instance.global_position)
 		# Send a signal saying that the spawn point is ready. This signal is defined
 		# in the EventBus singleton. We will use it to tell the player what altitude
 		# to spawn at.
-		print("Spawn chunk is ready.")
+		#print("Spawn chunk is ready.")
 		EventBus.spawn_chunk_is_ready.emit()

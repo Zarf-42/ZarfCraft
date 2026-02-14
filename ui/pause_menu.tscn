@@ -1,0 +1,65 @@
+[gd_scene format=3 uid="uid://djqrs8cjsvtu6"]
+
+[ext_resource type="Script" uid="uid://blb6llv6s65xl" path="res://ui/pause_menu.gd" id="1_50142"]
+
+[sub_resource type="LabelSettings" id="LabelSettings_euhrg"]
+font_size = 24
+outline_size = 12
+outline_color = Color(0, 0, 0, 1)
+
+[node name="PauseMenu" type="Control" unique_id=1268396828]
+process_mode = 3
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_50142")
+
+[node name="ColorRect" type="ColorRect" parent="." unique_id=434651622]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0, 0, 0, 0.38039216)
+
+[node name="CenterContainer" type="CenterContainer" parent="." unique_id=2075590638]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Control" type="Control" parent="CenterContainer" unique_id=2095436676]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="CenterContainer/Control" unique_id=100048799]
+layout_mode = 0
+offset_left = -388.0
+offset_top = -17.0
+offset_right = 388.0
+offset_bottom = 17.0
+size_flags_horizontal = 4
+text = "This is the pause menu. Look apon my text, ye mighty, and despair."
+label_settings = SubResource("LabelSettings_euhrg")
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="PauseButton" type="Button" parent="CenterContainer/Control" unique_id=1261879173]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -99.5
+offset_top = 43.0
+offset_right = 99.5
+offset_bottom = 111.0
+grow_horizontal = 2
+grow_vertical = 2
+text = "Unpause"

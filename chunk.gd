@@ -1,6 +1,9 @@
 class_name Chunk
 extends StaticBody3D
 
+# Chunk defines the shape of terrain in the game. Using perlin noise, we create a height map, and assign parts of that map to each chunk.
+# This also defines how basic blocks are made; this likely will need to be moved in the future.
+
 # Following https://www.youtube.com/watch?v=Pfqfr3zFyKI
 
 @export var material: Material
@@ -56,15 +59,6 @@ var face_normals: Dictionary[Face, Vector3] = {
 	Face.TOP: Vector3(0, 1, 0)
 }
 
-#var face_colors: Dictionary[Face, Color] = {
-	#Face.BOTTOM: Color.RED,
-	#Face.FRONT: Color.ORANGE,
-	#Face.RIGHT: Color.YELLOW,
-	#Face.TOP: Color.GREEN,
-	#Face.LEFT: Color.BLUE,
-	#Face.BACK: Color.PURPLE
-#}
-
 func _ready() -> void:
 	surface_array.resize(Mesh.ARRAY_MAX)
 	mesh_instance.mesh = ArrayMesh.new()
@@ -72,6 +66,7 @@ func _ready() -> void:
 	if voxels.is_empty(): return
 	
 	commit_mesh()
+	#print("Finished a chunk")
 
 # This function determines the position of each block in a given chunk.
 func generate_data(chunk_size: int, max_height: int, noise: Noise, color_array: Array[Color]):
@@ -97,6 +92,9 @@ func generate_data(chunk_size: int, max_height: int, noise: Noise, color_array: 
 			for y in range(min(local_height, chunk_size)):
 				voxels[Vector3(x, y, z)] = color_array[y % color_array.size()]
 
+# The "mesh" here is that of the chunk itself. This function places each face for every block in a chunk.
+# Simultaneously, it avoids placing faces if they are covered by a neighboring block, speeding up render
+# times a lot. Color is assigned here as well, but I think it's safe to remove.
 func generate_mesh():
 	if voxels.is_empty(): return
 	for pos in voxels:
@@ -133,7 +131,6 @@ func has_neighbor(data: Dictionary[Vector3, Color], face: Face, position: Vector
 
 func add_face(face: Face, vertice_position: Vector3, color: Color) -> void:
 	var indices = face_indices[face]
-	#print(indices)
 	for triangle in indices:
 		for index in triangle:
 			vertices.append(cube_vertices[index] + vertice_position)
@@ -155,11 +152,12 @@ func commit_mesh():
 	mesh_instance.mesh.surface_set_material(0, material)
 	
 	collision_shape.shape = mesh_instance.mesh.create_trimesh_shape()
+	#print(mesh_instance.global_position)
 	
-	if mesh_instance.global_position == Vector3(0.0, 32.0, 0.0):
+	if mesh_instance.global_position == Vector3(0.0, 0.0, 0.0):
 		#print(mesh_instance.global_position)
 		# Send a signal saying that the spawn point is ready. This signal is defined
 		# in the EventBus singleton. We will use it to tell the player what altitude
 		# to spawn at.
-		#print("Spawn chunk is ready.")
+		print("Spawn chunk is ready.")
 		EventBus.spawn_chunk_is_ready.emit()

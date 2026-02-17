@@ -20,11 +20,16 @@ config/icon="res://icon.svg"
 EventBus="*uid://bplsoqx7kyrd7"
 Settings="*uid://chydrt4ei17s"
 PauseManager="*uid://04ulj10p1rq"
+BlockRegistry="*uid://b1kcxaaeum7fo"
 
 [editor]
 
 version_control/plugin_name="GitPlugin"
 version_control/autoload_on_startup=true
+
+[global_group]
+
+pause_menu=""
 
 [input]
 
@@ -101,3 +106,4 @@ pause={
 [rendering]
 
 rendering_device/driver.windows="d3d12"
+lights_and_shadows/use_physical_light_units=true

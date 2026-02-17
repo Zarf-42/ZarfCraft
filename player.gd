@@ -37,7 +37,7 @@ func _physics_process(delta: float) -> void:
 	
 	# Handle running.
 	if Input.is_action_pressed("run"):
-		running = 5
+		running = 2.2
 	else:
 		running = 1
 
@@ -46,8 +46,9 @@ func _physics_process(delta: float) -> void:
 	var input_dir := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
 	var direction := (player_eyes.global_transform.basis * Vector3(input_dir.x, 0, input_dir.y)).normalized()
 	if direction:
+		# The "*2" here makes you fly faster.
 		if flying:
-				velocity = direction * SPEED * running
+				velocity = direction * SPEED * 2 * running
 		else:
 			velocity.x = direction.x * SPEED  * running
 			velocity.z = direction.z * SPEED * running
@@ -66,10 +67,13 @@ func _unhandled_input(event: InputEvent) -> void:
 		player_eyes.rotation.x = clamp(player_eyes.rotation.x, deg_to_rad(-80), deg_to_rad(80))
 
 func spawn():
+	print("player.spawn")
+	var random_location_y = 300.0
 	# Randomizes the horizontal location that the player spawns in, within the first chunk.
 	var random_location_x = randf_range(0.0, chunk_size)
 	var random_location_z = randf_range(0.0, chunk_size)
-	player.global_position = Vector3(random_location_x, player.global_position.y, random_location_z)
+	#print("Spawning player at %s, %s, %s." % [random_location_x, player.position.y, random_location_z])
+	player.global_position = Vector3(random_location_x, random_location_y, random_location_z)
 	# Once the player is initially spawned, we immediately move them so they are standing on the terrain.
 	# We get the location of the terrain with this RayCast3D.
 	spawn_altitude_cast.force_raycast_update()

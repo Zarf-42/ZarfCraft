@@ -9,14 +9,7 @@ var terrain_data: Dictionary[Vector3, Color] = {}
 func _ready():
 	# Get Mouse Mode from the Settings Singleton
 	Input.mouse_mode = Settings.mouse_mode
-	print("World Scene is ready, calling terrain generator...")
-	#EventBus.spawn_chunk_is_ready.connect(self._spawn)
-
-func _unhandled_input(event: InputEvent):
-	# If the user presses Esc, quit immediately.
-	if event.is_action_pressed("ui_cancel"):
-		get_tree().quit()
+	EventBus.spawn_chunk_is_ready.connect(self._spawn)
 
 func _spawn():
-	print("Calling Player.spawn...")
 	player.spawn()

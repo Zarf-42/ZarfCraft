@@ -1,5 +1,7 @@
 class_name ChunkManager extends Node
 
+# Chunk Manager defines the order in which chunks are generated. It splits this task among the available threads.
+
 # This determines if we use infinite word generation size or finite.
 @export var finite_world: bool = false
 # This is used to determine the size of the world in meters, if Infinite World Generation isn't 
@@ -18,12 +20,17 @@ class_name ChunkManager extends Node
 var render_distance = Settings.chunk_render_distance
 var random_generator = FastNoiseLite.new()
 var number_of_chunks: Vector3
+var kill_thread: bool = false
 
 var loading_threads: Array = Settings.threads
 
 var chunk_class = preload("res://chunk.tscn")
 
+# This is a boolean that we use to determine if a thread is stopped or not. We use it in thread_is_kill.
+var kill: bool = false
+
 func _ready():
+	print("Started engine at ", Time.get_ticks_msec())
 	# This makes it so the Signal emission at the end of generate_chunks() doesn't fire until the
 	# World script is loaded. If we don't have these lines, that signal emits before the connection
 	# is made in World's script.
@@ -37,7 +44,6 @@ func _ready():
 		chunks_to_generate = generate_terrain_infinite()
 	
 	multithreaded_terrain_generation(chunks_to_generate, loading_threads)
-	print("Done with chunks. Crashing...")
 
 func generate_terrain_finite():
 	random_generator.noise_type = FastNoiseLite.TYPE_SIMPLEX
@@ -63,6 +69,7 @@ func generate_terrain_infinite():
 	
 	# This takes the number of chunks in the queue and figures out how many each thread will take.
 	var chunks_organized_into_threads = split_chunk_queue(chunk_queue, number_of_threads)
+	
 	# This establishes chunk_coordinates as a multi-dimensional array.
 	var chunk_coordinates: Array = [[]]
 	for thread in number_of_threads:
@@ -78,7 +85,8 @@ func generate_terrain_infinite():
 func get_chunk_queue():	
 	var chunk_queue = []
 	# Generate spawn chunk. Should happen only once.
-	chunk_queue.append(Vector3i(0, 0, 0))
+	#chunk_queue.append(Vector3i(0, 0, 0))
+	#print("Readying spawn chunk")
 	for distance in range(1, render_distance + 1):
 		# Generate all chunks within this ring (distance-1 < r <= distance)
 		for x in range(-distance, distance + 1):
@@ -136,22 +144,40 @@ func split_chunk_queue(jobs_in_queue, number_of_threads):
 
 func generate_chunks(pos):
 	for chunk in pos:
+		if kill_thread == true:
+			break
+		#var start_time = Time.get_ticks_msec()
 		var new_chunk = chunk_class.instantiate()
 		new_chunk.position = Vector3((chunk[0] * chunk_size), (chunk[2] * chunk_size), (chunk[1] * chunk_size))
 		new_chunk.generate_data(chunk_size, 64, random_generator, colors)
 		new_chunk.generate_mesh()
 		call_deferred("add_child", new_chunk)
+		# Can we benchmark how long each chunk takes to spawn? This function is called in multiple
+		# threads, so we might be able to see how long each chunk takes to generate per thread.
+		#var stop_time = Time.get_ticks_msec()
+		#var gen_time = stop_time - start_time
+		#print("Gentime took %s ms." % [gen_time])
 
 func multithreaded_terrain_generation(chunks, number_of_threads):
 	# "chunks" is a multidimensional array. The first dimension is one array for each thread. The
 	# second is a list of Vector3is for each chunk.
 	
+	# We start by placing the chunk the player spawns in, so we can immediately set them down on it.
+	var spawn_point = [Vector3i(0, 0, 0)]
+	generate_chunks(spawn_point)
 	var i = 0
 	for thread in number_of_threads.size():
-		#loading_threads[thread].start(generate_chunks.bind(chunks[i]))
-		loading_threads[thread].start(func(): generate_chunks(chunks[i]))
+		#print(chunks[i])
+		if chunks[i] == spawn_point:
+			pass
+		else:
+			loading_threads[thread].start(func(): generate_chunks(chunks[i]))
 		i +=1
 
+# This acts as a flag that should allow us to terminate threads almost instantly.
+func thread_is_kill() -> bool:
+	kill_thread = true
+	return kill
 
 func _exit_tree():
 	for thread in loading_threads:

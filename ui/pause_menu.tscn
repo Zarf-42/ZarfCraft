@@ -9,6 +9,7 @@ outline_color = Color(0, 0, 0, 1)
 
 [node name="PauseMenu" type="Control" unique_id=1268396828 groups=["pause_menu"]]
 process_mode = 3
+z_index = 1
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0

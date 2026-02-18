@@ -20,7 +20,6 @@ config/icon="res://icon.svg"
 EventBus="*uid://bplsoqx7kyrd7"
 Settings="*uid://chydrt4ei17s"
 PauseManager="*uid://04ulj10p1rq"
-BlockRegistry="*uid://b1kcxaaeum7fo"
 
 [editor]
 

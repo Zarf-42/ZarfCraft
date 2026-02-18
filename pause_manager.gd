@@ -1,6 +1,10 @@
 extends Node
 const PAUSE_MENU_SCENE = preload("res://ui/pause_menu.tscn")
 
+# This defines behavior for the Pause Menu. Please note that the Z-Index of the Pause Menu is set to
+# 1, so that it appears in front of the player's reticle and HUD. This was changed through the GUI,
+# not code, so if you can't find it, look for it under the Inspector -> CanvasItem -> Ordering.
+
 var is_paused: bool = false
 var pause_menu_instance: Control = null
 
@@ -11,10 +15,9 @@ func _process(delta: float) -> void:
 	# This is bad. We're assigning a value to "player" 60 times a second. We need the Player object
 	# to emit a signal and THEN assign player in this manager. I think.
 	var player = $"/root/World/Player"
+	
 	# Handle pause.
-	if Input.is_action_just_pressed("pause"):
-		#print(get_tree().paused)
-		
+	if Input.is_action_just_pressed("pause"):		
 		if get_tree().paused == false:
 			pause()
 		elif get_tree().paused == true:

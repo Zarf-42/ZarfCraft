@@ -76,6 +76,7 @@ func generate_data(chunk_size: int, max_height: int, noise: Noise, color_array: 
 			# Also I think we generated chunks from the bottom up.
 			# I.E. new_position = 1, 0, 2 is West 1, Up 0, North 2. Y = 0 here because
 			# we start at the bottom of each chunk and generate upwards? Maybe?
+			# 2/17/26: I think we actually start from the top and generate down. 
 			#print("Global Position: ", global_position)
 			var global_pos = transform.origin + Vector3(x, 0, z)
 
@@ -85,16 +86,18 @@ func generate_data(chunk_size: int, max_height: int, noise: Noise, color_array: 
 				noise.get_noise_2d(global_pos.x * 4, global_pos.z * 4)) / 1.75 + 1) / 2
 			var rand_p = pow(rand, 2.1)
 			var height = max_height * rand_p
+			print("Generated block at %s" % [global_pos])
 
 			if height < position.y: continue
 
 			var local_height = height - position.y
 			for y in range(min(local_height, chunk_size)):
 				voxels[Vector3(x, y, z)] = color_array[y % color_array.size()]
+				
 
 # The "mesh" here is that of the chunk itself. This function places each face for every block in a chunk.
 # Simultaneously, it avoids placing faces if they are covered by a neighboring block, speeding up render
-# times a lot. Color is assigned here as well, but I think it's safe to remove.
+# times a lot.
 func generate_mesh():
 	if voxels.is_empty(): return
 	for pos in voxels:

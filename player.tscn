@@ -13,6 +13,14 @@ font_size = 31
 outline_size = 4
 outline_color = Color(0, 0, 0, 1)
 
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_hqtel"]
+transparency = 1
+albedo_color = Color(0.24705882, 0.24705882, 0.24705882, 0.6392157)
+
+[sub_resource type="BoxMesh" id="BoxMesh_hqtel"]
+material = SubResource("StandardMaterial3D_hqtel")
+size = Vector3(1.001, 1.001, 1.001)
+
 [node name="Player" type="CharacterBody3D" unique_id=165270570]
 script = ExtResource("1_4flbx")
 
@@ -28,8 +36,8 @@ current = true
 
 [node name="PlayerFocus" type="RayCast3D" parent="Head/PlayerEyes" unique_id=1233330407]
 transform = Transform3D(1, 0, 0, 0, -4.371139e-08, -1, 0, 1, -4.371139e-08, 0, 0, 0)
-target_position = Vector3(0, -6, 0)
-hit_from_inside = true
+target_position = Vector3(0, -256, 0)
+hit_back_faces = false
 
 [node name="HUD" type="Control" parent="Head/PlayerEyes" unique_id=914245732]
 layout_mode = 3
@@ -77,3 +85,7 @@ script = ExtResource("4_hqtel")
 
 [node name="SpawnAltitudeCast" type="RayCast3D" parent="." unique_id=710311164]
 target_position = Vector3(0, -1000, 0)
+
+[node name="BlockSelectionIndicator" type="MeshInstance3D" parent="." unique_id=1296808633]
+transform = Transform3D(0.976296, 0, 0.21643962, 0, 1, 0, -0.21643962, 0, 0.976296, 0, 1.75, 0)
+mesh = SubResource("BoxMesh_hqtel")

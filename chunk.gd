@@ -86,7 +86,7 @@ func generate_data(chunk_size: int, max_height: int, noise: Noise, color_array: 
 				noise.get_noise_2d(global_pos.x * 4, global_pos.z * 4)) / 1.75 + 1) / 2
 			var rand_p = pow(rand, 2.1)
 			var height = max_height * rand_p
-			print("Generated block at %s" % [global_pos])
+			#print("Generated block at %s" % [global_pos])
 
 			if height < position.y: continue
 
@@ -102,20 +102,22 @@ func generate_mesh():
 	if voxels.is_empty(): return
 	for pos in voxels:
 		var color = voxels[pos]
+		# This prevents cubes from generating at (0.0, 0.5, 0.0). Instead, all 3 coords are whole numbers.
+		var adjusted_pos = pos - Vector3(0.0, 0.5, 0.0)
 		# These If statements help optimize our terrain's meshes. If a cube has a neighbor, we don't
 		# render the face that touches that neighbor. This prevents invisible faces from being computed.
 		if not has_neighbor(voxels, Face.FRONT, pos):
-			add_face(Face.FRONT, pos, color)
+			add_face(Face.FRONT, adjusted_pos, color)
 		if not has_neighbor(voxels, Face.BACK, pos):
-			add_face(Face.BACK, pos, color)
+			add_face(Face.BACK, adjusted_pos, color)
 		if not has_neighbor(voxels, Face.LEFT, pos):
-			add_face(Face.LEFT, pos, color)
+			add_face(Face.LEFT, adjusted_pos, color)
 		if not has_neighbor(voxels, Face.RIGHT, pos):
-			add_face(Face.RIGHT, pos, color)
+			add_face(Face.RIGHT, adjusted_pos, color)
 		if not has_neighbor(voxels, Face.TOP, pos):
-			add_face(Face.TOP, pos, color)
+			add_face(Face.TOP, adjusted_pos, color)
 		if not has_neighbor(voxels, Face.BOTTOM, pos):
-			add_face(Face.BOTTOM, pos, color)
+			add_face(Face.BOTTOM, adjusted_pos, color)
 
 func has_neighbor(data: Dictionary[Vector3, Color], face: Face, position: Vector3):
 	# Somehow this is supposed to see if there's a block next to this face, so we can skip rendering

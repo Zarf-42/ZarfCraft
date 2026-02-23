@@ -19,6 +19,10 @@ class_name ChunkManager extends Node
 # We will get the random seed in the _ready() function.
 @export var noise_seed: int = 0
 
+# These two suddenly appeared in Tutorial pt 6.
+#@export var meshing_algorithm: MeshingAlgorithm
+#@export var terrain_algorithm: TerrainAlgorithm
+
 var render_distance = Settings.chunk_render_distance
 var random_generator = FastNoiseLite.new()
 var number_of_chunks: Vector3
@@ -33,8 +37,8 @@ var chunks: Dictionary[Vector3i, Chunk] = {}
 var kill: bool = false
 
 func _ready():
-	random_generator.seed = randi()
-	print("Random seed: ", random_generator.seed)
+	#random_generator.seed = randi()
+	#print("Random seed: ", random_generator.seed)
 	print("Started engine at ", Time.get_ticks_msec())
 	# This makes it so the Signal emission at the end of generate_chunks() doesn't fire until the
 	# World script is loaded. If we don't have these lines, that signal emits before the connection
@@ -49,6 +53,12 @@ func _ready():
 		chunks_to_generate = generate_terrain_infinite()
 	
 	multithreaded_terrain_generation(chunks_to_generate, loading_threads)
+
+#func add_voxel(pos: Vector3i, voxel: TerrainAlgorithm.Voxel):
+	#var chunk = get_chunk(pos)
+	#if !chunk:
+		#chunk = create_chunk(voxel_to_chunk_position(pos))
+		#add_child(chunk)
 
 func generate_terrain_finite():
 	random_generator.noise_type = FastNoiseLite.TYPE_SIMPLEX

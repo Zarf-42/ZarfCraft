@@ -82,6 +82,10 @@ func generate_data(chunk_size: int, max_height: int, noise: Noise, color_array: 
 			#print("Global Position: ", global_position)
 			var global_pos = transform.origin + Vector3(x, 0, z)
 
+			# This is the formula we use to generate the shape of our terrain. I believe the three
+			# get_noise_2ds act as 3 different octaves; the first generates large hills and valleys,
+			# the second adds medium details, and the third adds fine detail.
+			# The stuff on the ends of the lines ( +0.5, +0.25, etc) determine the steepness of these details.
 			var rand = ((
 				noise.get_noise_2d(global_pos.x, global_pos.z) + 0.5 * 
 				noise.get_noise_2d(global_pos.x * 2, global_pos.z * 2) + 0.25 * 
@@ -95,8 +99,7 @@ func generate_data(chunk_size: int, max_height: int, noise: Noise, color_array: 
 			var local_height = height - position.y
 			for y in range(min(local_height, chunk_size)):
 				voxels[Vector3(x, y, z)] = color_array[y % color_array.size()]
-				
-
+ 
 # The "mesh" here is that of the chunk itself. This function places each face for every block in a chunk.
 # Simultaneously, it avoids placing faces if they are covered by a neighboring block, speeding up render
 # times a lot.

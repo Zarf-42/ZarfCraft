@@ -16,7 +16,11 @@ environment = ExtResource("4_aqk2v")
 camera_attributes = SubResource("CameraAttributesPractical_aqk2v")
 
 [node name="ChunkManager" parent="." unique_id=1812560747 instance=ExtResource("3_tlwt5")]
+finite_world = null
+world_vector = null
+cutoff = null
 colors = Array[Color]([Color(0.26450002, 0.69, 0.1794, 1), Color(0.34, 0.68, 0.48733336, 1), Color(0.8392157, 0.3764706, 0, 1), Color(0.88, 0.71103996, 0.5632, 1), Color(0.96285766, 0.49747592, 0.3820687, 1), Color(0.9843137, 0.1254902, 0.22745098, 1), Color(0.68, 0.68, 0.68, 1), Color(0.083392, 0.083392, 0.08339202, 1)])
+noise_seed = null
 
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="." unique_id=1211244638]
 transform = Transform3D(0.952643, 0.08094178, 0.29312116, -0.30409107, 0.2550673, 0.91786134, -0.0004722476, -0.96352965, 0.2676017, 0.77613187, 2.4054737, 6.7321405)

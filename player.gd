@@ -49,24 +49,21 @@ func _physics_process(delta: float) -> void:
 	
 	# Handle running.
 	if Input.is_action_pressed("run"):
-		running = 2.2
+		running = 1.5
 	else:
 		running = 1
 
 	# Get the input direction and handle the movement/deceleration.
 	# As good practice, you should replace UI actions with custom gameplay actions.
 	var input_dir := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
-	var direction := (head.global_transform.basis * Vector3(input_dir.x, 0, input_dir.y)).normalized()
-	if direction:
-		# The "*2" here makes you fly faster.
-		if flying:
-				velocity = direction * SPEED * 2 * running
-		else:
-			velocity.x = direction.x * SPEED  * running
-			velocity.z = direction.z * SPEED * running
+	var direction
+	if flying:
+		direction = (player_eyes.global_transform.basis * Vector3(input_dir.x, 0, input_dir.y)).normalized()
+		velocity = direction * SPEED * 2 * running
 	else:
-		velocity.x = move_toward(velocity.x, 0, SPEED)
-		velocity.z = move_toward(velocity.z, 0, SPEED)
+		direction = (head.global_transform.basis * Vector3(input_dir.x, 0, input_dir.y)).normalized()
+		velocity.x = direction.x * SPEED  * running
+		velocity.z = direction.z * SPEED * running
 
 	move_and_slide()
 

@@ -1,5 +1,11 @@
 extends CharacterBody3D
 
+# Signals for adding or removing a block
+signal add_block
+signal remove_block
+
+
+
 # Radians per Pixel; needs VERY small values
 @export var mouse_sensitivity: float = Settings.mouse_sensitivity / 100
 @onready var head: Node3D = $Head
@@ -7,12 +13,14 @@ extends CharacterBody3D
 @onready var spawn_altitude_cast: RayCast3D = $SpawnAltitudeCast
 @onready var player: CharacterBody3D = $"."
 @onready var chunk_size: int = Settings.chunk_size
+@onready var player_focus: BlockRay = $Head/PlayerEyes/PlayerFocus
 
 var flying: bool = false
 
 const SPEED = 5.0
 var running = 1
 const JUMP_VELOCITY = 4.5
+const GRAVITY: float = 9.8
 var paused = Settings.pause_state
 
 func _ready():
@@ -25,11 +33,15 @@ func _physics_process(delta: float) -> void:
 		if flying:
 			velocity = Vector3.ZERO
 		else:
-			velocity += get_gravity() * delta
+			velocity.y += -GRAVITY * delta
 
 	# Handle jump.
-	if Input.is_action_just_pressed("ui_accept") and is_on_floor():
+	if Input.is_action_just_pressed("jump") and is_on_floor():
 		velocity.y = JUMP_VELOCITY
+	
+	if Input.is_action_just_released("jump") and !is_on_floor():
+		if velocity.y > 0:
+			velocity.y = velocity.y / 2
 		
 	# Handle toggling flying on and off.
 	if Input.is_action_just_pressed("toggle_flying"):
@@ -44,7 +56,7 @@ func _physics_process(delta: float) -> void:
 	# Get the input direction and handle the movement/deceleration.
 	# As good practice, you should replace UI actions with custom gameplay actions.
 	var input_dir := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
-	var direction := (player_eyes.global_transform.basis * Vector3(input_dir.x, 0, input_dir.y)).normalized()
+	var direction := (head.global_transform.basis * Vector3(input_dir.x, 0, input_dir.y)).normalized()
 	if direction:
 		# The "*2" here makes you fly faster.
 		if flying:
@@ -65,6 +77,16 @@ func _unhandled_input(event: InputEvent) -> void:
 		head.rotate_y(-relative.x)
 		player_eyes.rotate_x(-relative.y)
 		player_eyes.rotation.x = clamp(player_eyes.rotation.x, deg_to_rad(-80), deg_to_rad(80))
+	
+	# Handle placing and removing blocks
+	if event.is_action_pressed("add_block"):
+		var hit: BlockRay.RayHit = player_focus.get_ray_hit()
+		if hit:
+			add_block.emit(hit.add_position)
+	if event.is_action_pressed("remove_block"):
+		var hit: BlockRay.RayHit = player_focus.get_ray_hit()
+		if hit:
+			remove_block.emit(hit.add_position)
 
 func spawn():
 	print("player.spawn")

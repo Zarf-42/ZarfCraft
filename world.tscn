@@ -3,40 +3,16 @@
 [ext_resource type="Script" uid="uid://bwreor0aqspb4" path="res://world.gd" id="1_f3sb7"]
 [ext_resource type="PackedScene" uid="uid://d34uvd7dyk6ad" path="res://player.tscn" id="2_fj7yv"]
 [ext_resource type="PackedScene" uid="uid://4yfa4ciqrdqm" path="res://chunk_manager.tscn" id="3_tlwt5"]
-
-[sub_resource type="PhysicalSkyMaterial" id="PhysicalSkyMaterial_aqk2v"]
-rayleigh_coefficient = 1.7
-rayleigh_color = Color(0.2891075, 0.43369076, 0.88586926, 1)
-energy_multiplier = 3.0
-
-[sub_resource type="Sky" id="Sky_aqk2v"]
-sky_material = SubResource("PhysicalSkyMaterial_aqk2v")
-
-[sub_resource type="Environment" id="Environment_tlwt5"]
-background_mode = 2
-background_energy_multiplier = 1.31
-sky = SubResource("Sky_aqk2v")
-ambient_light_source = 3
-reflected_light_source = 2
-tonemap_mode = 3
-tonemap_exposure = 0.95
-tonemap_white = 4.0
-ssao_enabled = true
-ssao_power = 2.8978095
-glow_enabled = true
-glow_intensity = 0.8
-glow_hdr_threshold = 1.03
-fog_enabled = true
-fog_sun_scatter = 0.18
-fog_aerial_perspective = 1.0
+[ext_resource type="Environment" uid="uid://byb8ov2ru6hj7" path="res://sky_test_01.tres" id="4_aqk2v"]
 
 [sub_resource type="CameraAttributesPractical" id="CameraAttributesPractical_aqk2v"]
+auto_exposure_enabled = true
 
 [node name="World" type="Node3D" unique_id=666173279]
 script = ExtResource("1_f3sb7")
 
 [node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=997258904]
-environment = SubResource("Environment_tlwt5")
+environment = ExtResource("4_aqk2v")
 camera_attributes = SubResource("CameraAttributesPractical_aqk2v")
 
 [node name="ChunkManager" parent="." unique_id=1812560747 instance=ExtResource("3_tlwt5")]
@@ -53,4 +29,4 @@ shadow_transmittance_bias = 16.0
 shadow_opacity = 0.91
 
 [node name="Player" parent="." unique_id=165270570 instance=ExtResource("2_fj7yv")]
-transform = Transform3D(-0.9760878, 0, 0.21737674, 0, 1, 0, -0.21737674, 0, -0.9760878, 0, 2, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2, 0)

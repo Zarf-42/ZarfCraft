@@ -18,9 +18,12 @@ var vertices = PackedVector3Array()
 var normals = PackedVector3Array()
 var colors = PackedColorArray()
 
+var total_chunks = 0
+var chunk_gen_time = 0
+
 # These are the vertice coordinates. The cube's center is at 0,0,0. The cube is 1 unit long, 
 # so each vertice is 0.5 units out from the center. X is left/right, Y is vertical, Z is depth.
-var cube_vertices: Array[Vector3] = [
+const cube_vertices: Array[Vector3] = [
 	Vector3(-0.5, -0.5, 0.5), # 0, Bottom Left Front
 	Vector3(0.5, -0.5, 0.5), # 1, Bottom Right Front
 	Vector3(0.5, -0.5, -0.5), # 2, Bottom Right Back
@@ -39,7 +42,7 @@ enum Face{BOTTOM, FRONT, RIGHT, TOP, LEFT, BACK}
 # Using the Vertice Numbers in cube_vertices, decide which face consists of which vertices.
 # The order each vertice is listed in matters. Godot uses Clockwise Winding, so whatever
 # vertice we start on, we need to go clockwise to get to the next one.
-var face_indices: Dictionary[Face, Array] = {
+const face_indices: Dictionary[Face, Array] = {
 	Face.FRONT: [[0, 4, 5],[0, 5, 1]], #Checked 12/27/25
 	Face.BACK: [[2, 7, 3],[2, 6, 7]], #Checked 12/27/25
 	Face.LEFT: [[3, 7, 4],[3, 4, 0]], #Checked 12/27/25
@@ -50,7 +53,7 @@ var face_indices: Dictionary[Face, Array] = {
 
 # Normals determine what direction each face is pointing. Faces pointing away from you
 # don't get drawn.
-var face_normals: Dictionary[Face, Vector3] = {
+const face_normals: Dictionary[Face, Vector3] = {
 	Face.FRONT: Vector3(0, 0, 1),
 	Face.BACK: Vector3(0, 0, -1),
 	Face.LEFT: Vector3(-1, 0, 0),
@@ -72,8 +75,7 @@ func _ready() -> void:
 func generate_data(chunk_size: int, max_height: int, noise: Noise, color_array: Array[Color]):
 	for x in range(chunk_size):
 		for z in range(chunk_size):
-			# New Position, I think, is supposed to be where the next chunk generates.
-			# Also I think we generated chunks from the bottom up.
+			# New Position, I think, is supposed to be where the next cube generates.
 			# I.E. new_position = 1, 0, 2 is West 1, Up 0, North 2. Y = 0 here because
 			# we start at the bottom of each chunk and generate upwards? Maybe?
 			# 2/17/26: I think we actually start from the top and generate down. 
@@ -99,13 +101,28 @@ func generate_data(chunk_size: int, max_height: int, noise: Noise, color_array: 
 # Simultaneously, it avoids placing faces if they are covered by a neighboring block, speeding up render
 # times a lot.
 func generate_mesh():
+	#print("Total chunks before: ", total_chunks)
+	var start_time = Time.get_ticks_msec()
 	if voxels.is_empty(): return
+
 	for pos in voxels:
 		var color = voxels[pos]
-		# This prevents cubes from generating at (0.0, 0.5, 0.0). Instead, all 3 coords are whole numbers.
-		var adjusted_pos = pos - Vector3(0.0, 0.5, 0.0)
-		# These If statements help optimize our terrain's meshes. If a cube has a neighbor, we don't
-		# render the face that touches that neighbor. This prevents invisible faces from being computed.
+		# This prevents cubes from generating at (0.5, 0.5, 0.5). Instead, all 3 coords are whole numbers.
+		var adjusted_pos = pos - Vector3(0.5, 0.5, 0.5)
+		
+		# This for loop replaces all of the If statements below. We should benchmark and see if this slows
+		# things down or not. Sure is a lot nicer to read.
+		#for faces in Face.keys():
+			#if not has_neighbor(voxels, Face[faces], pos):
+				#add_face(Face[faces], adjusted_pos, color)
+		# 2/21/26: Running the below operations in a For Loop like above adds ~9 ms to every chunk's generation.
+
+	#for pos in voxels:
+		#var color = voxels[pos]
+		## This prevents cubes from generating at (0.5, 0.5, 0.5). Instead, all 3 coords are whole numbers.
+		#var adjusted_pos = pos - Vector3(0.5, 0.5, 0.5)
+		## These If statements help optimize our terrain's meshes. If a cube has a neighbor, we don't
+		## render the face that touches that neighbor. This prevents invisible faces from being computed.
 		if not has_neighbor(voxels, Face.FRONT, pos):
 			add_face(Face.FRONT, adjusted_pos, color)
 		if not has_neighbor(voxels, Face.BACK, pos):
@@ -118,6 +135,11 @@ func generate_mesh():
 			add_face(Face.TOP, adjusted_pos, color)
 		if not has_neighbor(voxels, Face.BOTTOM, pos):
 			add_face(Face.BOTTOM, adjusted_pos, color)
+	#var stop_time = Time.get_ticks_msec()
+	#total_chunks = total_chunks + 1
+	#chunk_gen_time = chunk_gen_time + (stop_time - start_time)
+	#print(chunk_gen_time)
+	#print("Total chunks after: ", total_chunks)
 
 func has_neighbor(data: Dictionary[Vector3, Color], face: Face, position: Vector3):
 	# Somehow this is supposed to see if there's a block next to this face, so we can skip rendering

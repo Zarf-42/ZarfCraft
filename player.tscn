@@ -5,7 +5,7 @@
 [ext_resource type="Script" uid="uid://cjt5a037au3cc" path="res://reticle.gd" id="2_onrkg"]
 [ext_resource type="Script" uid="uid://je43vo2yfc3m" path="res://fps_counter.gd" id="3_i3pqv"]
 [ext_resource type="Script" uid="uid://3j80b3qbkxwk" path="res://looking_at.gd" id="4_hqtel"]
-[ext_resource type="Texture2D" uid="uid://bwhu01o0tt1pv" path="res://res/cursor_cube.png" id="5_2hs0m"]
+[ext_resource type="Material" uid="uid://bnfua2km5ykks" path="res://cursor_cube.tres" id="6_1jxqw"]
 [ext_resource type="Script" uid="uid://c4r7nsapt0x4y" path="res://block_selection_indicator.gd" id="6_2hs0m"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_sh265"]
@@ -16,20 +16,8 @@ font_size = 31
 outline_size = 4
 outline_color = Color(0, 0, 0, 1)
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_1jxqw"]
-transparency = 1
-shading_mode = 0
-disable_ambient_light = true
-disable_fog = true
-disable_specular_occlusion = true
-vertex_color_use_as_albedo = true
-albedo_texture = ExtResource("5_2hs0m")
-uv1_offset = Vector3(0.5, 0.5, 0.5)
-uv1_triplanar = true
-texture_filter = 0
-disable_receive_shadows = true
-
 [sub_resource type="BoxMesh" id="BoxMesh_sweqy"]
+material = ExtResource("6_1jxqw")
 
 [node name="Player" type="CharacterBody3D" unique_id=165270570]
 script = ExtResource("1_4flbx")
@@ -105,7 +93,6 @@ target_position = Vector3(0, -1000, 0)
 
 [node name="BlockSelectionIndicator" type="MeshInstance3D" parent="." unique_id=1296808633]
 transform = Transform3D(1.001, 0, 0, 0, 1.001, 0, 0, 0, 1.001, 0, 1.75, 0)
-material_override = SubResource("StandardMaterial3D_1jxqw")
 cast_shadow = 0
 mesh = SubResource("BoxMesh_sweqy")
 script = ExtResource("6_2hs0m")

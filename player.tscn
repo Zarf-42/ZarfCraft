@@ -5,7 +5,7 @@
 [ext_resource type="Script" uid="uid://cjt5a037au3cc" path="res://reticle.gd" id="2_onrkg"]
 [ext_resource type="Script" uid="uid://je43vo2yfc3m" path="res://fps_counter.gd" id="3_i3pqv"]
 [ext_resource type="Script" uid="uid://3j80b3qbkxwk" path="res://looking_at.gd" id="4_hqtel"]
-[ext_resource type="Texture2D" uid="uid://bwhu01o0tt1pv" path="res://res/cursor_cube.png" id="5_2hs0m"]
+[ext_resource type="Texture2D" uid="uid://cn5ffesuspu81" path="res://res/cursor_cube.png.png" id="5_2hs0m"]
 [ext_resource type="Script" uid="uid://c4r7nsapt0x4y" path="res://block_selection_indicator.gd" id="6_2hs0m"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_sh265"]

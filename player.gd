@@ -19,7 +19,7 @@ var flying: bool = false
 
 const SPEED = 5.0
 var running = 1
-const JUMP_VELOCITY = 4.5
+const JUMP_VELOCITY = 9.8
 const GRAVITY: float = 9.8
 var paused = Settings.pause_state
 
@@ -33,7 +33,7 @@ func _physics_process(delta: float) -> void:
 		if flying:
 			velocity = Vector3.ZERO
 		else:
-			velocity.y += -GRAVITY * delta
+			velocity.y += (-GRAVITY * delta) * 3
 
 	# Handle jump.
 	if Input.is_action_just_pressed("jump") and is_on_floor():
@@ -49,7 +49,7 @@ func _physics_process(delta: float) -> void:
 	
 	# Handle running.
 	if Input.is_action_pressed("run"):
-		running = 1.5
+		running = 2
 	else:
 		running = 1
 

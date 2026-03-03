@@ -6,7 +6,6 @@
 [ext_resource type="Script" uid="uid://je43vo2yfc3m" path="res://fps_counter.gd" id="3_i3pqv"]
 [ext_resource type="Script" uid="uid://3j80b3qbkxwk" path="res://looking_at.gd" id="4_hqtel"]
 [ext_resource type="Texture2D" uid="uid://bwhu01o0tt1pv" path="res://res/cursor_cube.png" id="6_1jxqw"]
-[ext_resource type="Script" uid="uid://c4r7nsapt0x4y" path="res://block_selection_indicator.gd" id="6_2hs0m"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_sh265"]
 radius = 0.25
@@ -26,7 +25,7 @@ uv1_triplanar = true
 texture_filter = 0
 disable_receive_shadows = true
 
-[sub_resource type="BoxMesh" id="BoxMesh_sweqy"]
+[sub_resource type="BoxMesh" id="BoxMesh_1jxqw"]
 material = SubResource("StandardMaterial3D_dw050")
 
 [node name="Player" type="CharacterBody3D" unique_id=165270570]
@@ -44,7 +43,7 @@ current = true
 
 [node name="PlayerFocus" type="RayCast3D" parent="Head/PlayerEyes" unique_id=1233330407]
 transform = Transform3D(1, 0, 0, 0, -4.371139e-08, -1, 0, 1, -4.371139e-08, 0, 0, 0)
-target_position = Vector3(0, -256, 0)
+target_position = Vector3(0, -6, 0)
 hit_back_faces = false
 script = ExtResource("2_1jxqw")
 
@@ -98,11 +97,16 @@ text = "Normal: "
 label_settings = SubResource("LabelSettings_onrkg")
 script = ExtResource("4_hqtel")
 
+[node name="CursorLocation" type="Label" parent="Head/PlayerEyes/HUD/MarginContainer/VBoxContainer" unique_id=568016632]
+layout_mode = 2
+text = "Cursor:  "
+label_settings = SubResource("LabelSettings_onrkg")
+script = ExtResource("4_hqtel")
+
 [node name="SpawnAltitudeCast" type="RayCast3D" parent="." unique_id=710311164]
 target_position = Vector3(0, -1000, 0)
 
-[node name="BlockSelectionIndicator" type="MeshInstance3D" parent="." unique_id=1296808633]
-transform = Transform3D(1.001, 0, 0, 0, 1.001, 0, 0, 0, 1.001, 0, 1.75, 0)
-cast_shadow = 0
-mesh = SubResource("BoxMesh_sweqy")
-script = ExtResource("6_2hs0m")
+[node name="FocusThingy" type="MeshInstance3D" parent="." unique_id=1101481568]
+transform = Transform3D(1.01, 0, 0, 0, -4.4148504e-08, -1.01, 0, 1.01, -4.4148504e-08, 0, 0, 0)
+top_level = true
+mesh = SubResource("BoxMesh_1jxqw")

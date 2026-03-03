@@ -2,42 +2,66 @@ extends Label
 @onready var player_focus: RayCast3D = $"../../../../PlayerFocus"
 @onready var spawn_altitude_cast: RayCast3D = $"../../../../../../SpawnAltitudeCast"
 @onready var player: CharacterBody3D = $"../../../../../.."
-@onready var block_selection_indicator: MeshInstance3D = $"../../../../../../BlockSelectionIndicator"
 @onready var fps_counter: Label = $"../FPSCounter"
 @onready var looking_at: Label = $"."
 @onready var block_normal_label: Label = $"../BlockNormal"
+@onready var cursor_location: Label = $"../CursorLocation"
+@onready var chunk_manager: ChunkManager = $"../../../../../../../ChunkManager"
+@onready var focus_thingy: MeshInstance3D = $"../../../../../../FocusThingy"
 
 func _ready():
 	# Ignore the player's collision mesh! Or else the raycaster won't work. We don't have to ignore
 	# the selection indicator because it has no collision mesh.
 	player_focus.add_exception(player)
 
-func _process(delta: float):
+func _process(_delta: float):
 	# This handles a label in the HUD that tells you what you're looking at. PlayerFocus hits a chunk,
 	# then get_block_target figures out the position of the block the player is looking at.
 	if player_focus.get_collider() == null:
 		looking_at.text = "Target: Nothing"
-		block_selection_indicator.visible = false
+		cursor_location.text = "Cursor: Nothing"
+		focus_thingy.visible = false
 	else:
 		looking_at.text = "Target: %s" % [player_focus.get_collision_point()]
-		block_selection_indicator.visible = true
-		block_selection_indicator.global_position = get_target(player_focus.get_collision_point())
-		#block_selection_indicator.rotation = Vector3i(0, 0, 0)
+		get_target(player_focus.get_collision_point())
+		focus_thingy.visible = true
 
-func get_target(collision_point):
+func get_target(_collision_point):
+	# Get the Chunk the player is looking at.
+	if player_focus.get_collider() != null:# && collision_point:
+		var currently_focused_chunk = player_focus.get_collider()
+		var focus_location = Vector3(
+			# We have to reverse z and y here because... reasons?
+			int(currently_focused_chunk.global_position.x / Settings.chunk_size),
+			int(currently_focused_chunk.global_position.z / Settings.chunk_height),
+			int(currently_focused_chunk.global_position.y / Settings.chunk_size))
+		var _chunk = chunk_manager.chunks.get(focus_location, null)
+		focus_thingy.global_position = player_focus.get_collision_point()
+	
 	# 2/22/26: Shouldn't this be handled by the PlayerFocus object, not the label?
 	# I had this && here for a reason but I don't know what. Commenting out the second part seems to work.
 	if player_focus.get_collider() != null:# && collision_point:
 		var block_normal = player_focus.get_collision_normal()
+		# We set cursor as a Vector3i to eliminate some rounding errors. Not sure it helps.
+		var cursor = Vector3i(player_focus.get_collision_point())
+		#print(cursor)
 		block_normal_label.text = "Normal: %s" % [block_normal]
 		# Normals are positive or negative. Positive means the first direction below, negative means
 		# the second. So 0, 0, -1 would be the south face of a cube.
 		# East/-West, Top/-Bottom, North/-South
 		
-		# This line checks the location Player is looking at. Using the Normal of the collider, it
-		# determines where to put the cube cursor.
-		var pos = (collision_point + block_normal * -0.5).floor() + Vector3(0.5, 0.5, 0.5)
+		# We set pos as a Vector3 version of cursor (a Vector3i) so we can keep the rounded results
+		# of "cursor", but add a decimal (0.5) to the end.
+		var pos: Vector3 = cursor
 		
+		# We use this For loop to go through all 3 axes; X, Y, and Z.
+		for axes in 3:
+			if block_normal[axes] == 0.0:
+				focus_thingy.position[axes] = floor(focus_thingy.position[axes]) + 0.5
+			else:
+				focus_thingy.position[axes] -= 0.5 * block_normal[axes]
+
+		cursor_location.text = "Cursor: %s" % [floor(focus_thingy.global_position) as Vector3i]
 		# Now that we have the coordinates for our block, we need to go out to the chunk it's in and
 		# get information about it. We also need to be able to delete it, but I'm not certain where
 		# to put that code yet.

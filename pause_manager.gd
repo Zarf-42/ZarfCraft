@@ -11,10 +11,10 @@ var pause_menu_instance: Control = null
 func _ready():
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	 
-func _process(delta: float) -> void:
+func _process(_delta: float) -> void:
 	# This is bad. We're assigning a value to "player" 60 times a second. We need the Player object
 	# to emit a signal and THEN assign player in this manager. I think.
-	var player = $"/root/World/Player"
+#	var player = $"/root/World/Player"
 	
 	# Handle pause.
 	if Input.is_action_just_pressed("pause"):		

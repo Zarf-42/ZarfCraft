@@ -13,7 +13,7 @@ func get_ray_hit():
 	var collider = get_collider()
 	if collider is not Chunk: return null
 	
-	var chunk = collider as Chunk
+	var _chunk = collider as Chunk
 	var point = get_collision_point()
 	var normal = get_collision_normal()
 	var pos = (point + normal * -0.5).floor() + Vector3(0.5, 0.5, 0.5)

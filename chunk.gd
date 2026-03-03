@@ -21,17 +21,31 @@ var colors = PackedColorArray()
 var total_chunks = 0
 var chunk_gen_time = 0
 
+# 2/27/26: This is the old Cube dimensions code. It creates a cube whose center coordinate is actually 0.5xyz.
+## These are the vertice coordinates. The cube's center is at 0,0,0. The cube is 1 unit long, 
+## so each vertice is 0.5 units out from the center. X is left/right, Y is vertical, Z is depth.
+#const cube_vertices: Array[Vector3] = [
+	#Vector3(-0.5, -0.5, 0.5), # 0, Bottom Left Front
+	#Vector3(0.5, -0.5, 0.5), # 1, Bottom Right Front
+	#Vector3(0.5, -0.5, -0.5), # 2, Bottom Right Back
+	#Vector3(-0.5, -0.5, -0.5), # 3, Bottom Left Back
+	#Vector3(-0.5, 0.5, 0.5), # 4,  Top Left Front
+	#Vector3(0.5, 0.5, 0.5), # 5, Top Right Front
+	#Vector3(0.5, 0.5, -0.5), # 6, Top Right Back
+	#Vector3(-0.5, 0.5, -0.5) # 7, Top Left Back
+#]
+
 # These are the vertice coordinates. The cube's center is at 0,0,0. The cube is 1 unit long, 
 # so each vertice is 0.5 units out from the center. X is left/right, Y is vertical, Z is depth.
 const cube_vertices: Array[Vector3] = [
-	Vector3(-0.5, -0.5, 0.5), # 0, Bottom Left Front
-	Vector3(0.5, -0.5, 0.5), # 1, Bottom Right Front
-	Vector3(0.5, -0.5, -0.5), # 2, Bottom Right Back
-	Vector3(-0.5, -0.5, -0.5), # 3, Bottom Left Back
-	Vector3(-0.5, 0.5, 0.5), # 4,  Top Left Front
-	Vector3(0.5, 0.5, 0.5), # 5, Top Right Front
-	Vector3(0.5, 0.5, -0.5), # 6, Top Right Back
-	Vector3(-0.5, 0.5, -0.5) # 7, Top Left Back
+	Vector3(0, 0, 1), # 0, Bottom Left Front
+	Vector3(1, 0, 1), # 1, Bottom Right Front
+	Vector3(1, 0, 0), # 2, Bottom Right Back
+	Vector3(0, 0, 0), # 3, Bottom Left Back
+	Vector3(0, 1, 1), # 4,  Top Left Front
+	Vector3(1, 1, 1), # 5, Top Right Front
+	Vector3(1, 1, 0), # 6, Top Right Back
+	Vector3(0, 1, 0) # 7, Top Left Back
 ]
 
 # Allows us to add data "per face" according to the video. This is so we don't
@@ -69,35 +83,37 @@ func _ready() -> void:
 	if voxels.is_empty(): return
 	
 	commit_mesh()
+	#print("%s: _ready - voxels type = %s, size = %s" % [name, typeof(voxels), voxels.size() if voxels else "NULL"])
 	#print("Finished a chunk")
 
-# This function determines the position of each block in a given chunk.
+# This function determines the position of each block in a given chunk. I believe this is where we
+# need to record the location of each block, perhaps in a dictionary?
 func generate_data(chunk_size: int, max_height: int, noise: Noise, color_array: Array[Color]):
+
 	for x in range(chunk_size):
 		for z in range(chunk_size):
 			# New Position, I think, is supposed to be where the next cube generates.
 			# I.E. new_position = 1, 0, 2 is West 1, Up 0, North 2. Y = 0 here because
 			# we start at the bottom of each chunk and generate upwards? Maybe?
 			# 2/17/26: I think we actually start from the top and generate down. 
-			#print("Global Position: ", global_position)
-			var global_pos = transform.origin + Vector3(x, 0, z)
+			# 2/24/26: Convert transform.origin to vector3i. All block coords should be integers.
+			var global_pos = Vector3(transform.origin) + Vector3(x, 0, z)
 
 			# This is the formula we use to generate the shape of our terrain. I believe the three
 			# get_noise_2ds act as 3 different octaves; the first generates large hills and valleys,
 			# the second adds medium details, and the third adds fine detail.
 			# The stuff on the ends of the lines ( +0.5, +0.25, etc) determine the steepness of these details.
 			var rand = ((
-				noise.get_noise_2d(global_pos.x, global_pos.z) + 0.5 * 
+				noise.get_noise_2d(global_pos.x, global_pos.z) + 0.6 * 
 				noise.get_noise_2d(global_pos.x * 2, global_pos.z * 2) + 0.25 * 
 				noise.get_noise_2d(global_pos.x * 4, global_pos.z * 4)) / 1.75 + 1) / 2
 			var rand_p = pow(rand, 2.1)
-			var height = max_height * rand_p
-			#print("Generated block at %s" % [global_pos])
+			var height = int(max_height * rand_p)
 
 			if height < position.y: continue
 
-			var local_height = height - position.y
-			for y in range(min(local_height, chunk_size)):
+			var local_height = int(height - position.y)
+			for y in range(min(local_height, max_height)):
 				voxels[Vector3(x, y, z)] = color_array[y % color_array.size()]
  
 # The "mesh" here is that of the chunk itself. This function places each face for every block in a chunk.
@@ -105,13 +121,14 @@ func generate_data(chunk_size: int, max_height: int, noise: Noise, color_array: 
 # times a lot.
 func generate_mesh():
 	#print("Total chunks before: ", total_chunks)
-	var start_time = Time.get_ticks_msec()
+	#var start_time = Time.get_ticks_msec()
 	if voxels.is_empty(): return
 
 	for pos in voxels:
 		var color = voxels[pos]
+		#2/24/26: Changing cube positions to integers. We can't have cubes at 0.5, so we'll have to fix the cursor elsewhere.
 		# This prevents cubes from generating at (0.5, 0.5, 0.5). Instead, all 3 coords are whole numbers.
-		var adjusted_pos = pos - Vector3(0.5, 0.5, 0.5)
+		#var adjusted_pos = pos #- Vector3(0.5, 0.5, 0.5)
 		
 		# This for loop replaces all of the If statements below. We should benchmark and see if this slows
 		# things down or not. Sure is a lot nicer to read.
@@ -127,22 +144,17 @@ func generate_mesh():
 		## These If statements help optimize our terrain's meshes. If a cube has a neighbor, we don't
 		## render the face that touches that neighbor. This prevents invisible faces from being computed.
 		if not has_neighbor(voxels, Face.FRONT, pos):
-			add_face(Face.FRONT, adjusted_pos, color)
+			add_face(Face.FRONT, pos, color)
 		if not has_neighbor(voxels, Face.BACK, pos):
-			add_face(Face.BACK, adjusted_pos, color)
+			add_face(Face.BACK, pos, color)
 		if not has_neighbor(voxels, Face.LEFT, pos):
-			add_face(Face.LEFT, adjusted_pos, color)
+			add_face(Face.LEFT, pos, color)
 		if not has_neighbor(voxels, Face.RIGHT, pos):
-			add_face(Face.RIGHT, adjusted_pos, color)
+			add_face(Face.RIGHT, pos, color)
 		if not has_neighbor(voxels, Face.TOP, pos):
-			add_face(Face.TOP, adjusted_pos, color)
+			add_face(Face.TOP, pos, color)
 		if not has_neighbor(voxels, Face.BOTTOM, pos):
-			add_face(Face.BOTTOM, adjusted_pos, color)
-	#var stop_time = Time.get_ticks_msec()
-	#total_chunks = total_chunks + 1
-	#chunk_gen_time = chunk_gen_time + (stop_time - start_time)
-	#print(chunk_gen_time)
-	#print("Total chunks after: ", total_chunks)
+			add_face(Face.BOTTOM, pos, color)
 
 func has_neighbor(data: Dictionary[Vector3, Color], face: Face, position: Vector3):
 	# Somehow this is supposed to see if there's a block next to this face, so we can skip rendering
@@ -176,6 +188,10 @@ func commit_mesh():
 	surface_array[Mesh.ARRAY_VERTEX] = vertices
 	surface_array[Mesh.ARRAY_NORMAL] = normals
 	surface_array[Mesh.ARRAY_COLOR] = colors
+	#print(mesh_instance)
+	# Would this be where we assign voxels? Returning "voxels" already returns coordinates.
+	# No, Mesh is a Godot class that contains ARRAY_VERTEXT, ARRAY_NORMAL, etc. VOXEL or ARRAY_VOXEL
+	# would essentially just be made up.
 	
 	#Take the data in Surface Array and run it through the add_surface_from_arrays method?
 	mesh_instance.mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, surface_array)
@@ -189,5 +205,6 @@ func commit_mesh():
 		# Send a signal saying that the spawn point is ready. This signal is defined
 		# in the EventBus singleton. We will use it to tell the player what altitude
 		# to spawn at.
-		print("Spawn chunk is ready.")
+		#print("Spawn chunk is ready.")
 		EventBus.spawn_chunk_is_ready.emit()
+	#return(voxels)

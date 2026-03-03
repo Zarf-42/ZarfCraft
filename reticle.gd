@@ -20,5 +20,5 @@ func _draw():
 	draw_circle(center_position, outer_circle_radius, color, false, outer_circle_width, true) # Outer Circle
 	
 	# Draw the inner dot
-	draw_circle(center_position, inner_circle_radius, border_color, true, 0, true) # Inner Dot Border
-	draw_circle(center_position, inner_circle_radius-1.2, color, true, 0, true) # Inner Dot
+	draw_circle(center_position, inner_circle_radius, border_color, true, -1, true) # Inner Dot Border
+	draw_circle(center_position, inner_circle_radius-1.2, color, true, -1, true) # Inner Dot

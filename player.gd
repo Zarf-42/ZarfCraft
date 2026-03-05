@@ -13,6 +13,8 @@ signal remove_block
 @onready var chunk_size: int = Settings.chunk_size
 @onready var player_focus: BlockRay = $Head/PlayerEyes/PlayerFocus
 @onready var chunk_manager: ChunkManager = $"../ChunkManager"
+@onready var ray_cast: BlockRay = $Head/PlayerEyes/PlayerFocus
+@onready var player_is_spawned: bool = false
 
 var flying: bool = false
 
@@ -87,23 +89,30 @@ func _unhandled_input(event: InputEvent) -> void:
 			remove_block.emit(hit.add_position)
 
 func spawn():
-	# This is written to spawn the player in initially. It can't do movable spawn points yet.
-	# This gets all of the block locations in the spawn_chunk.
-	var spawn_chunk = chunk_manager.chunks.get(Vector3i(0, 0, 0), null)
-	if spawn_chunk:
-		var random_location_x = randi_range(0, chunk_size)
-		var random_location_z = randi_range(0, chunk_size)
-		# From 0 to whatever chunk_height is...
-		for y in Settings.chunk_height:
-			# If there's a block there, mark it down
-			var altitude = y + 1.5
-			# Adjust the spawn altitude for every layer that a block exists.
-			if spawn_chunk.voxels.has(Vector3i(random_location_x, y, random_location_z)):
-				altitude = y + 1.5
-			else:
-				# As soon as we run out of blocks, break out of this If statement
-				return
-			# We have the max altitude, so spawn the player there. This will spawn players under 
-			# overhangs, including ones that are too short. Need to write something that checks if
-			# there's a gap large enough for the player.
-			player.global_position = Vector3(random_location_x, altitude, random_location_z)
+	print("Spawn state: ", Settings.player_is_spawned)
+	if Settings.player_is_spawned == true:
+		print("Spawn state is now: ", Settings.player_is_spawned)
+		return
+	elif Settings.player_is_spawned == false:
+		# This is written to spawn the player in initially. It can't do movable spawn points yet.
+		# This gets all of the block locations in the spawn_chunk.
+		var spawn_chunk = chunk_manager.chunks.get(Vector3i(0, 0, 0), null)
+		if spawn_chunk:
+			var random_location_x = randi_range(0, chunk_size)
+			var random_location_z = randi_range(0, chunk_size)
+			# From 0 to whatever chunk_height is...
+			for y in Settings.chunk_height:
+				# If there's a block there, mark it down
+				var altitude = y + 1.5
+				# Adjust the spawn altitude for every layer that a block exists.
+				if spawn_chunk.voxels.has(Vector3i(random_location_x, y, random_location_z)):
+					altitude = y + 1.5
+				else:
+					# As soon as we run out of blocks, break out of this If statement
+					return
+				# We have the max altitude, so spawn the player there. This will spawn players under 
+				# overhangs, including ones that are too short. Need to write something that checks if
+				# there's a gap large enough for the player.
+				player.global_position = Vector3(random_location_x, altitude, random_location_z)
+				Settings.player_is_spawned = true
+	else: return

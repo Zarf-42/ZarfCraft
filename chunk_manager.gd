@@ -11,6 +11,8 @@ class_name ChunkManager extends Node
 @onready var chunk_size: int = Settings.chunk_size
 @onready var chunk_height: int = Settings.chunk_height
 @onready var skip_these_chunks = []
+@onready var player_focus: BlockRay = $"../Player/Head/PlayerEyes/PlayerFocus"
+@onready var player: CharacterBody3D = $"../Player"
 @export var world_size: Vector3 = Vector3(world_vector, world_vector, world_vector)
 
 # Cutoff defines how dense the random cubes are. Higher numbers equate to less density.
@@ -40,6 +42,10 @@ func _ready():
 	# World script is loaded. If we don't have these lines, that signal emits before the connection
 	# is made in World's script.
 	await $"../".ready
+	
+	
+	player.add_block.connect(self._on_add_block)
+	player.remove_block.connect(self._on_remove_block)
 	
 	var chunks_to_generate = []
 	#print("Chunk coords: ", chunks_to_generate)
@@ -180,6 +186,54 @@ func multithreaded_terrain_generation(chunks_by_thread, _number_of_threads):
 	for i in range(chunks_by_thread.size()):
 		if i < loading_threads.size() and not chunks_by_thread[i].is_empty():
 			loading_threads[i].start(func(): generate_chunks(chunks_by_thread[i]))
+
+func _on_add_block(pos: Vector3i):
+	# Get the position of the block we want to add onto
+	#pos = get_chunk(pos)
+	#print(pos)
+	pass
+
+func _on_remove_block(pos: Vector3i):
+	var chunk = player_focus.get_collider() as Chunk
+	var chunk_gloc = Vector3i(chunk.global_position)
+	var local_pos = player_focus.get_ray_hit().remove_position - Vector3i(chunk.global_position)
+	
+	if chunk.voxels.has(local_pos):
+		chunk.voxels.erase(local_pos)
+		chunk.regenerate_mesh().call_deferred()
+	else:
+		return
+
+func get_voxel(pos: Vector3i):
+	# Pos is currently the voxel's Global Position. We need the voxel's Local Position and return it.
+	var chunk = player_focus.get_collider()
+	var chunk_gloc = Vector3i(chunk.global_position)
+	var chunk_x = int(floor(pos.x / Settings.chunk_size))
+	var chunk_z = int(floor(pos.z / Settings.chunk_size))
+	var chunk_key = "%d_%d" % [chunk_x, chunk_z]
+	var local_pos = pos - chunk_gloc
+	#print("Chunk key: %s, Local position: %s" % [chunk_key, local_pos])
+	return {
+		"chunk_key": chunk_key,
+		"local_pos": local_pos
+	}
+
+func remove_chunk(chunk_position: Vector3i):
+	if !chunks.has(chunk_position): return
+	var chunk = chunks[chunk_position]
+	chunks.erase(chunk_position)
+	chunk.queue_free()
+
+func create_chunk(chunk_position: Vector3i):
+	# This function is used when modifying a chunk. It has to delete the old mesh and add a new one.
+	remove_chunk(chunk_position)
+	
+	var chunk = chunk_class.instantiate() as Chunk
+	chunk.chunk_data.SetSize(chunk_size)
+	chunk.position = chunk_position
+	chunks[chunk.position] = chunk
+	
+	return chunk
 
 # This acts as a flag that should allow us to terminate threads almost instantly.
 func thread_is_kill() -> bool:

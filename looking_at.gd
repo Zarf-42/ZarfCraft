@@ -41,7 +41,7 @@ func get_target(_collision_point):
 	# 2/22/26: Shouldn't this be handled by the PlayerFocus object, not the label?
 	# I had this && here for a reason but I don't know what. Commenting out the second part seems to work.
 	if player_focus.get_collider() != null:# && collision_point:
-		var block_normal = player_focus.get_collision_normal()
+		var block_normal = Vector3i(player_focus.get_collision_normal())
 		# We set cursor as a Vector3i to eliminate some rounding errors. Not sure it helps.
 		var cursor = Vector3i(player_focus.get_collision_point())
 		#print(cursor)
@@ -65,6 +65,9 @@ func get_target(_collision_point):
 		# Now that we have the coordinates for our block, we need to go out to the chunk it's in and
 		# get information about it. We also need to be able to delete it, but I'm not certain where
 		# to put that code yet.
+		
+		# This gets the voxel coords that the player is looking at.
+		#chunk_manager.get_chunk(cursor)
 		return pos
 	else:
 		return

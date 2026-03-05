@@ -11,7 +11,7 @@ extends StaticBody3D
 @onready var collision_shape = $TerrainCollision
 @onready var mesh_instance: MeshInstance3D = $TerrainMesh
 
-var voxels: Dictionary[Vector3, Color] = {}
+var voxels: Dictionary[Vector3i, Color] = {}
 
 var surface_array: Array = []
 var vertices = PackedVector3Array()
@@ -77,8 +77,8 @@ const face_normals: Dictionary[Face, Vector3] = {
 }
 
 func _ready() -> void:
-	surface_array.resize(Mesh.ARRAY_MAX)
-	mesh_instance.mesh = ArrayMesh.new()
+	#surface_array.resize(Mesh.ARRAY_MAX)
+	#mesh_instance.mesh = ArrayMesh.new()
 	
 	if voxels.is_empty(): return
 	
@@ -114,7 +114,7 @@ func generate_data(chunk_size: int, max_height: int, noise: Noise, color_array: 
 
 			var local_height = int(height - position.y)
 			for y in range(min(local_height, max_height)):
-				voxels[Vector3(x, y, z)] = color_array[y % color_array.size()]
+				voxels[Vector3i(x, y, z)] = color_array[y % color_array.size()]
  
 # The "mesh" here is that of the chunk itself. This function places each face for every block in a chunk.
 # Simultaneously, it avoids placing faces if they are covered by a neighboring block, speeding up render
@@ -156,7 +156,7 @@ func generate_mesh():
 		if not has_neighbor(voxels, Face.BOTTOM, pos):
 			add_face(Face.BOTTOM, pos, color)
 
-func has_neighbor(data: Dictionary[Vector3, Color], face: Face, position: Vector3):
+func has_neighbor(data: Dictionary[Vector3i, Color], face: Face, position: Vector3):
 	# Somehow this is supposed to see if there's a block next to this face, so we can skip rendering
 	# I think it gets the position of the face that was just added in generate_mesh above.
 	# Then it detects if that position + 1 has a block in it (or minus 1; it uses the Face Normal to determine this)
@@ -179,32 +179,72 @@ func add_face(face: Face, vertice_position: Vector3, color: Color) -> void:
 			normals.append(face_normals[face])
 			colors.append(color)
 
-# Takes the data that we generated and puts it in an array; I.E. the vertices, normals, and colors
-# we generated previously.
 func commit_mesh():
-	# I believe this takes the values assigned to Vertices, Normals, and Colors, and writes
-	# them out into the Surface Array. Essentially, it assigns those properties (which we
-	# generate elsewhere) to the terrain.
-	surface_array[Mesh.ARRAY_VERTEX] = vertices
-	surface_array[Mesh.ARRAY_NORMAL] = normals
-	surface_array[Mesh.ARRAY_COLOR] = colors
-	#print(mesh_instance)
-	# Would this be where we assign voxels? Returning "voxels" already returns coordinates.
-	# No, Mesh is a Godot class that contains ARRAY_VERTEXT, ARRAY_NORMAL, etc. VOXEL or ARRAY_VOXEL
-	# would essentially just be made up.
+	var new_mesh = ArrayMesh.new()
+	var arrays = []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = vertices
+	arrays[Mesh.ARRAY_NORMAL] = normals
+	arrays[Mesh.ARRAY_COLOR] = colors
+	new_mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	new_mesh.surface_set_material(0, material)
+	mesh_instance.mesh = new_mesh
+	collision_shape.shape = new_mesh.create_trimesh_shape()
 	
-	#Take the data in Surface Array and run it through the add_surface_from_arrays method?
-	mesh_instance.mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, surface_array)
-	mesh_instance.mesh.surface_set_material(0, material)
-	
-	collision_shape.shape = mesh_instance.mesh.create_trimesh_shape()
-	#print(mesh_instance.global_position)
-	
-	if mesh_instance.global_position == Vector3(0.0, 0.0, 0.0):
-		#print(mesh_instance.global_position)
-		# Send a signal saying that the spawn point is ready. This signal is defined
-		# in the EventBus singleton. We will use it to tell the player what altitude
-		# to spawn at.
-		#print("Spawn chunk is ready.")
+	if mesh_instance.global_position == Vector3(0.0, 0.0, 0.0) && Settings.player_is_spawned == false:
+		#print(Settings.player_is_spawned)
 		EventBus.spawn_chunk_is_ready.emit()
-	#return(voxels)
+	else: return
+		
+func regenerate_mesh():
+	var start_time = Time.get_ticks_msec()
+	
+	vertices.clear()
+	var vertice_time = Time.get_ticks_msec() - start_time
+	
+	normals.clear()
+	var normals_time = Time.get_ticks_msec() - start_time
+	
+	colors.clear()
+	var colors_time = Time.get_ticks_msec() - start_time
+	
+	generate_mesh()
+	var generate_time = Time.get_ticks_msec() - start_time
+	
+	commit_mesh()
+	var commit_time = Time.get_ticks_msec() - start_time - generate_time
+	
+	print(
+	"Cleared vertices: %s\nNormals: %s \nColors: %s \nGenerated Mesh: %s \nCommit: %s" % [
+	vertice_time, normals_time, colors_time, generate_time, commit_time])
+
+# 3/3/26: Redid commit_mesh. This is the old version.
+## Takes the data that we generated and puts it in an array; I.E. the vertices, normals, and colors
+## we generated previously.
+#func commit_mesh():
+	## I believe this takes the values assigned to Vertices, Normals, and Colors, and writes
+	## them out into the Surface Array. Essentially, it assigns those properties (which we
+	## generate elsewhere) to the terrain.
+	#surface_array[Mesh.ARRAY_VERTEX] = vertices
+	#surface_array[Mesh.ARRAY_NORMAL] = normals
+	#surface_array[Mesh.ARRAY_COLOR] = colors
+	##print(mesh_instance)
+	## Would this be where we assign voxels? Returning "voxels" already returns coordinates.
+	## No, Mesh is a Godot class that contains ARRAY_VERTEXT, ARRAY_NORMAL, etc. VOXEL or ARRAY_VOXEL
+	## would essentially just be made up.
+	#
+	##Take the data in Surface Array and run it through the add_surface_from_arrays method?
+	#mesh_instance.mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, surface_array)
+	#mesh_instance.mesh.surface_set_material(0, material)
+	#
+	#collision_shape.shape = mesh_instance.mesh.create_trimesh_shape()
+	##print(mesh_instance.global_position)
+	#
+	#if mesh_instance.global_position == Vector3(0.0, 0.0, 0.0):
+		##print(mesh_instance.global_position)
+		## Send a signal saying that the spawn point is ready. This signal is defined
+		## in the EventBus singleton. We will use it to tell the player what altitude
+		## to spawn at.
+		##print("Spawn chunk is ready.")
+		#EventBus.spawn_chunk_is_ready.emit()
+	##return(voxels)

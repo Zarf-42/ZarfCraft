@@ -15,7 +15,12 @@ func get_ray_hit():
 	
 	var _chunk = collider as Chunk
 	var point = get_collision_point()
-	var normal = get_collision_normal()
-	var pos = (point + normal * -0.5).floor() + Vector3(0.5, 0.5, 0.5)
+	var normal = Vector3i(get_collision_normal())
+	# This appears to work if we're looking at the top face of a cube, but otherwise won't.
+	# Refactor to ensure we're returning the correct position.
+	var remove_position = Vector3i((point - normal * 0.5).floor())
+	var add_position = remove_position + normal
+	#var pos = (point + normal * -0.5).floor() + Vector3(0.5, 0.5, 0.5)
 	
-	return RayHit.new(pos, pos + normal)
+	#print("Pos: %s, Pos/Normal: %s" % [remove_position, (remove_position + normal)])
+	return RayHit.new(remove_position, remove_position + normal)

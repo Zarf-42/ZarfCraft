@@ -200,7 +200,7 @@ func _on_remove_block(pos: Vector3i):
 	
 	if chunk.voxels.has(local_pos):
 		chunk.voxels.erase(local_pos)
-		chunk.regenerate_mesh().call_deferred()
+		chunk.regenerate_mesh()
 	else:
 		return
 

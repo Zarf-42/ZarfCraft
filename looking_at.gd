@@ -8,6 +8,7 @@ extends Label
 @onready var cursor_location: Label = $"../CursorLocation"
 @onready var chunk_manager: ChunkManager = $"../../../../../../../ChunkManager"
 @onready var focus_thingy: MeshInstance3D = $"../../../../../../FocusThingy"
+@onready var chunk: Label = $"../Chunk"
 
 func _ready():
 	# Ignore the player's collision mesh! Or else the raycaster won't work. We don't have to ignore
@@ -25,6 +26,7 @@ func _process(_delta: float):
 		looking_at.text = "Target: %s" % [player_focus.get_collision_point()]
 		get_target(player_focus.get_collision_point())
 		focus_thingy.visible = true
+		chunk.text = player_focus.get_collider().name
 
 func get_target(_collision_point):
 	# Get the Chunk the player is looking at.

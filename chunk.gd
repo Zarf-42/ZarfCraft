@@ -1,8 +1,8 @@
 class_name Chunk
 extends StaticBody3D
 
-# Chunk defines the shape of terrain in the game. Using perlin noise, we create a height map, and assign parts of that map to each chunk.
-# This also defines how basic blocks are made; this likely will need to be moved in the future.
+# This Class defines the geometry of Voxels, how voxels are placed inside Chunks, and how Chunk
+# meshes are optimized. We should probably split out Voxels into its own class.
 
 # Following https://www.youtube.com/watch?v=Pfqfr3zFyKI
 
@@ -20,20 +20,6 @@ var colors = PackedColorArray()
 
 var total_chunks = 0
 var chunk_gen_time = 0
-
-# 2/27/26: This is the old Cube dimensions code. It creates a cube whose center coordinate is actually 0.5xyz.
-## These are the vertice coordinates. The cube's center is at 0,0,0. The cube is 1 unit long, 
-## so each vertice is 0.5 units out from the center. X is left/right, Y is vertical, Z is depth.
-#const cube_vertices: Array[Vector3] = [
-	#Vector3(-0.5, -0.5, 0.5), # 0, Bottom Left Front
-	#Vector3(0.5, -0.5, 0.5), # 1, Bottom Right Front
-	#Vector3(0.5, -0.5, -0.5), # 2, Bottom Right Back
-	#Vector3(-0.5, -0.5, -0.5), # 3, Bottom Left Back
-	#Vector3(-0.5, 0.5, 0.5), # 4,  Top Left Front
-	#Vector3(0.5, 0.5, 0.5), # 5, Top Right Front
-	#Vector3(0.5, 0.5, -0.5), # 6, Top Right Back
-	#Vector3(-0.5, 0.5, -0.5) # 7, Top Left Back
-#]
 
 # These are the vertice coordinates. The cube's center is at 0,0,0. The cube is 1 unit long, 
 # so each vertice is 0.5 units out from the center. X is left/right, Y is vertical, Z is depth.
@@ -89,7 +75,6 @@ func _ready() -> void:
 # This function determines the position of each block in a given chunk. I believe this is where we
 # need to record the location of each block, perhaps in a dictionary?
 func generate_data(chunk_size: int, max_height: int, noise: Noise, color_array: Array[Color]):
-
 	for x in range(chunk_size):
 		for z in range(chunk_size):
 			# New Position, I think, is supposed to be where the next cube generates.
@@ -120,27 +105,18 @@ func generate_data(chunk_size: int, max_height: int, noise: Noise, color_array: 
 # Simultaneously, it avoids placing faces if they are covered by a neighboring block, speeding up render
 # times a lot.
 func generate_mesh():
-	#print("Total chunks before: ", total_chunks)
-	#var start_time = Time.get_ticks_msec()
+	#This skips generating the chunk if said chunk is totally empty. I think this is going to be rare,
+	# but a good edge case to check against.
 	if voxels.is_empty(): return
 
 	for pos in voxels:
 		var color = voxels[pos]
-		#2/24/26: Changing cube positions to integers. We can't have cubes at 0.5, so we'll have to fix the cursor elsewhere.
-		# This prevents cubes from generating at (0.5, 0.5, 0.5). Instead, all 3 coords are whole numbers.
-		#var adjusted_pos = pos #- Vector3(0.5, 0.5, 0.5)
-		
-		# This for loop replaces all of the If statements below. We should benchmark and see if this slows
-		# things down or not. Sure is a lot nicer to read.
+		# I attempted to replace all of the If statements below with this nice For loop. Unfortunately,
+		# this adds ~9ms to an already expensive operation.
 		#for faces in Face.keys():
 			#if not has_neighbor(voxels, Face[faces], pos):
 				#add_face(Face[faces], adjusted_pos, color)
-		# 2/21/26: Running the below operations in a For Loop like above adds ~9 ms to every chunk's generation.
 
-	#for pos in voxels:
-		#var color = voxels[pos]
-		## This prevents cubes from generating at (0.5, 0.5, 0.5). Instead, all 3 coords are whole numbers.
-		#var adjusted_pos = pos - Vector3(0.5, 0.5, 0.5)
 		## These If statements help optimize our terrain's meshes. If a cube has a neighbor, we don't
 		## render the face that touches that neighbor. This prevents invisible faces from being computed.
 		if not has_neighbor(voxels, Face.FRONT, pos):
@@ -157,19 +133,12 @@ func generate_mesh():
 			add_face(Face.BOTTOM, pos, color)
 
 func has_neighbor(data: Dictionary[Vector3i, Color], face: Face, position: Vector3):
-	# Somehow this is supposed to see if there's a block next to this face, so we can skip rendering
-	# I think it gets the position of the face that was just added in generate_mesh above.
-	# Then it detects if that position + 1 has a block in it (or minus 1; it uses the Face Normal to determine this)
+	# This checks all adjacent positions for neighbors. If one exists, we skip generating that face.
 	var neighbor_position = position + face_normals[face]
 	if data.has(neighbor_position):
 		return true
 	else:
 		return false
-		
-		#return true
-	#return false
-	# The above is a shortcut; the Return True inside the if statement gets us out of this 
-	# function early, meaning we skip the Return False line. No Else needed. Not sure if I like that.
 
 func add_face(face: Face, vertice_position: Vector3, color: Color) -> void:
 	var indices = face_indices[face]
@@ -214,37 +183,6 @@ func regenerate_mesh():
 	commit_mesh()
 	var commit_time = Time.get_ticks_msec() - start_time - generate_time
 	
-	print(
-	"Cleared vertices: %s\nNormals: %s \nColors: %s \nGenerated Mesh: %s \nCommit: %s" % [
-	vertice_time, normals_time, colors_time, generate_time, commit_time])
-
-# 3/3/26: Redid commit_mesh. This is the old version.
-## Takes the data that we generated and puts it in an array; I.E. the vertices, normals, and colors
-## we generated previously.
-#func commit_mesh():
-	## I believe this takes the values assigned to Vertices, Normals, and Colors, and writes
-	## them out into the Surface Array. Essentially, it assigns those properties (which we
-	## generate elsewhere) to the terrain.
-	#surface_array[Mesh.ARRAY_VERTEX] = vertices
-	#surface_array[Mesh.ARRAY_NORMAL] = normals
-	#surface_array[Mesh.ARRAY_COLOR] = colors
-	##print(mesh_instance)
-	## Would this be where we assign voxels? Returning "voxels" already returns coordinates.
-	## No, Mesh is a Godot class that contains ARRAY_VERTEXT, ARRAY_NORMAL, etc. VOXEL or ARRAY_VOXEL
-	## would essentially just be made up.
-	#
-	##Take the data in Surface Array and run it through the add_surface_from_arrays method?
-	#mesh_instance.mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, surface_array)
-	#mesh_instance.mesh.surface_set_material(0, material)
-	#
-	#collision_shape.shape = mesh_instance.mesh.create_trimesh_shape()
-	##print(mesh_instance.global_position)
-	#
-	#if mesh_instance.global_position == Vector3(0.0, 0.0, 0.0):
-		##print(mesh_instance.global_position)
-		## Send a signal saying that the spawn point is ready. This signal is defined
-		## in the EventBus singleton. We will use it to tell the player what altitude
-		## to spawn at.
-		##print("Spawn chunk is ready.")
-		#EventBus.spawn_chunk_is_ready.emit()
-	##return(voxels)
+	#print(
+	#"Cleared vertices: %s\nNormals: %s \nColors: %s \nGenerated Mesh: %s \nCommit: %s" % [
+	#vertice_time, normals_time, colors_time, generate_time, commit_time])

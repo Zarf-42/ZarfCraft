@@ -9,6 +9,7 @@
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_sh265"]
 radius = 0.25
+height = 1.95
 
 [sub_resource type="LabelSettings" id="LabelSettings_onrkg"]
 font_size = 31
@@ -32,7 +33,7 @@ material = SubResource("StandardMaterial3D_dw050")
 script = ExtResource("1_4flbx")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=2086274004]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.975, 0)
 shape = SubResource("CapsuleShape3D_sh265")
 
 [node name="Head" type="Node3D" parent="." unique_id=1987293831]
@@ -100,6 +101,12 @@ script = ExtResource("4_hqtel")
 [node name="CursorLocation" type="Label" parent="Head/PlayerEyes/HUD/MarginContainer/VBoxContainer" unique_id=568016632]
 layout_mode = 2
 text = "Cursor:  "
+label_settings = SubResource("LabelSettings_onrkg")
+script = ExtResource("4_hqtel")
+
+[node name="Chunk" type="Label" parent="Head/PlayerEyes/HUD/MarginContainer/VBoxContainer" unique_id=1069346759]
+layout_mode = 2
+text = "Chunk:  "
 label_settings = SubResource("LabelSettings_onrkg")
 script = ExtResource("4_hqtel")
 

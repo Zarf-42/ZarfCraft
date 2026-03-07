@@ -8,7 +8,7 @@ var mouse_mode = Input.MOUSE_MODE_CAPTURED
 # but until I've eliminated any other Typed Arrays relating to Nodes, this needs to stay as it is.
 #var threads: Array[Thread]
 var threads: Array = []
-@export var chunk_render_distance: int = 8
+@export var chunk_render_distance: int = 2
 @export var mouse_sensitivity: float = 0.27
 @export var single_threaded: bool = true
 @export var player_reach: Vector3 = Vector3(4, 4, 4)
@@ -23,20 +23,14 @@ func get_threads():
 	var availableThreads = OS.get_processor_count()
 	if single_threaded == false:
 	
-		# If we're running on a quad-core or better, set the number of threads to
-		# the core count minus 2. Otherwise, just establish 2 threads.
-		if availableThreads > 2:
-			#availableThreads -=2 # We appear to have better performance when using fewer threads.
-			# 2/21/2024: Sweet spot seems to be 6 threads on my CPU. Total time spent generating
-			# chunks is lowest on that setting. Using 8, the chunks take longer to generate and the
-			# total worldgen time is higher. Using fewer, the chunks generate faster, but not as
-			# many at a time, so worldgen still is higher. 6: 2.6-3 seconds. 4: 4 seconds.
-			# 8: 4 seconds.
-			availableThreads = 6
-		else:
+		# Choosing the number of threads based on how many cores. Seems to top out at 6, as far as performance goes.
+		if availableThreads == 2:
 			availableThreads = 2
-	else:
-		availableThreads = 1
+		elif availableThreads == 6:
+			availableThreads = 3
+		elif availableThreads > 6:
+			availableThreads = 6
+			
 	return(availableThreads)
 
 func register_threads(available_threads):

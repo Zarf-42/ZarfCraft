@@ -64,9 +64,6 @@ func get_target(_collision_point):
 				focus_thingy.position[axes] -= 0.5 * block_normal[axes]
 
 		cursor_location.text = "Cursor: %s" % [floor(focus_thingy.global_position) as Vector3i]
-		# Now that we have the coordinates for our block, we need to go out to the chunk it's in and
-		# get information about it. We also need to be able to delete it, but I'm not certain where
-		# to put that code yet.
 		
 		# This gets the voxel coords that the player is looking at.
 		#chunk_manager.get_chunk(cursor)

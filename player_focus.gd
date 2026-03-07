@@ -13,14 +13,15 @@ func get_ray_hit():
 	var collider = get_collider()
 	if collider is not Chunk: return null
 	
-	var _chunk = collider as Chunk
+	# This gathers the Collision Point's coordinates and the Normal the player is looking at. These
+	# are used to determine what block is being targeted and from what direction, so that we can
+	# remove the correct block, or add one on the correct face.
+	# _chunk is commented out but we might want it in the future, for ensuring we aren't adding
+	# voxels beyond the border of a chunk.
+	#var _chunk = collider as Chunk
 	var point = get_collision_point()
 	var normal = Vector3i(get_collision_normal())
-	# This appears to work if we're looking at the top face of a cube, but otherwise won't.
-	# Refactor to ensure we're returning the correct position.
 	var remove_position = Vector3i((point - normal * 0.5).floor())
 	var add_position = remove_position + normal
-	#var pos = (point + normal * -0.5).floor() + Vector3(0.5, 0.5, 0.5)
-	
-	#print("Pos: %s, Pos/Normal: %s" % [remove_position, (remove_position + normal)])
+
 	return RayHit.new(remove_position, remove_position + normal)

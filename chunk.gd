@@ -11,12 +11,18 @@ extends StaticBody3D
 @onready var collision_shape = $TerrainCollision
 @onready var mesh_instance: MeshInstance3D = $TerrainMesh
 
-var voxels: Dictionary[Vector3i, Color] = {}
+#var voxels: Dictionary[Vector3i, Color] = {}
+var voxels: Dictionary[Vector3i, BlockType] = {}
+
+#@onready var atlas: Texture2D = self.material.albedo_texture
+#var atlas_size: int = atlas.get_size()[0]
+var number_of_textures_in_atlas: Vector2 = Vector2.ZERO
 
 var surface_array: Array = []
 var vertices = PackedVector3Array()
 var normals = PackedVector3Array()
-var colors = PackedColorArray()
+var uvs = PackedVector2Array()
+#var colors = PackedColorArray()
 
 var total_chunks = 0
 var chunk_gen_time = 0
@@ -65,7 +71,6 @@ const face_normals: Dictionary[Face, Vector3] = {
 func _ready() -> void:
 	#surface_array.resize(Mesh.ARRAY_MAX)
 	#mesh_instance.mesh = ArrayMesh.new()
-	
 	if voxels.is_empty(): return
 	
 	commit_mesh()
@@ -74,7 +79,7 @@ func _ready() -> void:
 
 # This function determines the position of each block in a given chunk. I believe this is where we
 # need to record the location of each block, perhaps in a dictionary?
-func generate_data(chunk_size: int, max_height: int, noise: Noise, color_array: Array[Color]):
+func generate_data(chunk_size: int, max_height: int, noise: Noise, block_types: Array[BlockType]):
 	for x in range(chunk_size):
 		for z in range(chunk_size):
 			# New Position, I think, is supposed to be where the next cube generates.
@@ -96,10 +101,27 @@ func generate_data(chunk_size: int, max_height: int, noise: Noise, color_array: 
 			var height = int(max_height * rand_p)
 
 			if height < position.y: continue
+			# This is the old color function replaced with BlockTypes to try to debug why the game
+			# hangs on runtime.
+			var color_array = block_types
 
 			var local_height = int(height - position.y)
 			for y in range(min(local_height, max_height)):
 				voxels[Vector3i(x, y, z)] = color_array[y % color_array.size()]
+
+
+			#for y in range(min(local_height, max_height)):
+				#var block_type: BlockType
+				##var depth_from_surface = local_height - y - 1
+				#block_type = block_types[1]
+				#print(x, ", ", z)
+			#
+			#voxels[Vector3i(x, 0, z)] = block_types[1]
+			
+			# This was used when we were generating block colors based on altitude. With BlockTypes,
+			# We are no longer using colors primarily.
+			#for y in range(min(local_height, max_height)):
+			#	voxels[Vector3i(x, y, z)] = color_array[y % color_array.size()]
  
 # The "mesh" here is that of the chunk itself. This function places each face for every block in a chunk.
 # Simultaneously, it avoids placing faces if they are covered by a neighboring block, speeding up render
@@ -108,31 +130,38 @@ func generate_mesh():
 	#This skips generating the chunk if said chunk is totally empty. I think this is going to be rare,
 	# but a good edge case to check against.
 	if voxels.is_empty(): return
+	
+	var atlas: Texture2D = self.material.albedo_texture
+	var atlas_size: int = atlas.get_size()[0]
+	number_of_textures_in_atlas = Vector2((atlas_size / Settings.texture_size), 1)
+
 
 	for pos in voxels:
-		var color = voxels[pos]
-		# I attempted to replace all of the If statements below with this nice For loop. Unfortunately,
-		# this adds ~9ms to an already expensive operation.
-		#for faces in Face.keys():
-			#if not has_neighbor(voxels, Face[faces], pos):
-				#add_face(Face[faces], adjusted_pos, color)
+		#var color = voxels[pos]
+		var block_type = voxels[pos]
+	
+	# I attempted to replace all of the If statements below with this nice For loop. Unfortunately,
+	# this adds ~9ms to an already expensive operation.
+	#for faces in Face.keys():
+		#if not has_neighbor(voxels, Face[faces], pos):
+			#add_face(Face[faces], adjusted_pos, color)
 
-		## These If statements help optimize our terrain's meshes. If a cube has a neighbor, we don't
-		## render the face that touches that neighbor. This prevents invisible faces from being computed.
+	## These If statements help optimize our terrain's meshes. If a cube has a neighbor, we don't
+	## render the face that touches that neighbor. This prevents invisible faces from being computed.
 		if not has_neighbor(voxels, Face.FRONT, pos):
-			add_face(Face.FRONT, pos, color)
+			add_face(Face.FRONT, pos, block_type)
 		if not has_neighbor(voxels, Face.BACK, pos):
-			add_face(Face.BACK, pos, color)
+			add_face(Face.BACK, pos, block_type)
 		if not has_neighbor(voxels, Face.LEFT, pos):
-			add_face(Face.LEFT, pos, color)
+			add_face(Face.LEFT, pos, block_type)
 		if not has_neighbor(voxels, Face.RIGHT, pos):
-			add_face(Face.RIGHT, pos, color)
+			add_face(Face.RIGHT, pos, block_type)
 		if not has_neighbor(voxels, Face.TOP, pos):
-			add_face(Face.TOP, pos, color)
+			add_face(Face.TOP, pos, block_type)
 		if not has_neighbor(voxels, Face.BOTTOM, pos):
-			add_face(Face.BOTTOM, pos, color)
+			add_face(Face.BOTTOM, pos, block_type)
 
-func has_neighbor(data: Dictionary[Vector3i, Color], face: Face, position: Vector3):
+func has_neighbor(data: Dictionary[Vector3i, BlockType], face: Face, position: Vector3):
 	# This checks all adjacent positions for neighbors. If one exists, we skip generating that face.
 	var neighbor_position = position + face_normals[face]
 	if data.has(neighbor_position):
@@ -140,13 +169,26 @@ func has_neighbor(data: Dictionary[Vector3i, Color], face: Face, position: Vecto
 	else:
 		return false
 
-func add_face(face: Face, vertice_position: Vector3, color: Color) -> void:
+func add_face(face: Face, vertice_position: Vector3, block: BlockType) -> void:
+	# Add UVs so we can see textures	
 	var indices = face_indices[face]
 	for triangle in indices:
 		for index in triangle:
-			vertices.append(cube_vertices[index] + vertice_position)
+			var vertex = cube_vertices[index]
+			vertices.append(vertex + vertice_position)
 			normals.append(face_normals[face])
-			colors.append(color)
+			
+			var uv: Vector2
+			match face:
+				Face.FRONT:		uv = Vector2(vertex.x, 1.0 - vertex.y)
+				Face.BACK:		uv = Vector2(1.0 - vertex.x, 1.0 - vertex.y)
+				Face.LEFT:		uv = Vector2(vertex.z, 1.0 - vertex.y)
+				Face.RIGHT:		uv = Vector2(1.0 - vertex.z, 1.0 - vertex.y)
+				Face.TOP:		uv = Vector2(vertex.x, vertex.z)
+				Face.BOTTOM:		uv = Vector2(vertex.x, 1.0 - vertex.z)
+	
+			uv = (uv + block.uv_offset) / number_of_textures_in_atlas
+			uvs.append(uv)
 
 func commit_mesh():
 	var new_mesh = ArrayMesh.new()
@@ -154,8 +196,11 @@ func commit_mesh():
 	arrays.resize(Mesh.ARRAY_MAX)
 	arrays[Mesh.ARRAY_VERTEX] = vertices
 	arrays[Mesh.ARRAY_NORMAL] = normals
-	arrays[Mesh.ARRAY_COLOR] = colors
+	arrays[Mesh.ARRAY_TEX_UV] = uvs
 	new_mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	print("Vertex count: ", vertices.size())
+	print("UV count: ", uvs.size())
+	print("UV sample: ", uvs[0] if uvs.size() > 0 else "EMPTY")
 	new_mesh.surface_set_material(0, material)
 	mesh_instance.mesh = new_mesh
 	collision_shape.shape = new_mesh.create_trimesh_shape()
@@ -174,8 +219,8 @@ func regenerate_mesh():
 	normals.clear()
 	var normals_time = Time.get_ticks_msec() - start_time
 	
-	colors.clear()
-	var colors_time = Time.get_ticks_msec() - start_time
+	uvs.clear()
+	var uvs_time = Time.get_ticks_msec() - start_time
 	
 	generate_mesh()
 	var generate_time = Time.get_ticks_msec() - start_time
@@ -184,5 +229,5 @@ func regenerate_mesh():
 	var commit_time = Time.get_ticks_msec() - start_time - generate_time
 	
 	#print(
-	#"Cleared vertices: %s\nNormals: %s \nColors: %s \nGenerated Mesh: %s \nCommit: %s" % [
-	#vertice_time, normals_time, colors_time, generate_time, commit_time])
+	#"Cleared vertices: %s\nNormals: %s \nUVs: %s \nGenerated Mesh: %s \nCommit: %s" % [
+	#vertice_time, normals_time, uvs_time, generate_time, commit_time])

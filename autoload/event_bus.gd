@@ -8,6 +8,9 @@ extends Node
 
 signal spawn_chunk_is_ready
 signal chunk_spawned
+signal blocks_ready(block_types: Array) # Used to tell other scenes when we've loaded all available
+#var chunk_manager: ChunkManager
+# block types.
 #signal button_pressed(_PauseButton)
 
 func _ready():

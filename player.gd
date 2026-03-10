@@ -3,6 +3,9 @@ extends CharacterBody3D
 # Signals for adding or removing a block
 signal add_block
 signal remove_block
+signal scroll
+
+var chunk_manager: ChunkManager
 
 # Radians per Pixel; needs VERY small values
 @export var mouse_sensitivity: float = Settings.mouse_sensitivity / 100
@@ -12,9 +15,12 @@ signal remove_block
 @onready var player: CharacterBody3D = $"."
 @onready var chunk_size: int = Settings.chunk_size
 @onready var player_focus: BlockRay = $Head/PlayerEyes/PlayerFocus
-@onready var chunk_manager: ChunkManager = $"../ChunkManager"
 @onready var ray_cast: BlockRay = $Head/PlayerEyes/PlayerFocus
 @onready var player_is_spawned: bool = false
+@onready var selected_block: Node = $SelectedBlock
+
+@export var selected_block_type_index: int = 1
+var selected_block_type: BlockType
 
 var flying: bool = false
 
@@ -25,10 +31,18 @@ const GRAVITY: float = 9.8
 var paused = Settings.pause_state
 
 func _ready():
+	EventBus.blocks_ready.connect(_on_blocks_ready)
+
 	player.global_position = Vector3i(0, 100, 0)
 	process_mode = Node.PROCESS_MODE_PAUSABLE
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	#player_focus.target_position = Settings.player_reach
+
+func _on_blocks_ready(block_types: Array):
+	# Initialize the player's current Block Choice to be stone
+	if block_types.size() > 0:
+		selected_block_type_index = 1
+		selected_block_type = block_types[selected_block_type_index]
 
 func _physics_process(delta: float) -> void:
 	# Add gravity, if the player is not flying.
@@ -88,6 +102,11 @@ func _unhandled_input(event: InputEvent) -> void:
 		if hit:
 			remove_block.emit(hit.add_position)
 
+	if event.is_action_pressed("scroll_up"):
+		scroll.emit("scroll_up")
+	if event.is_action_pressed("scroll_down"):
+		scroll.emit("scroll_down")
+
 func spawn():
 	print("Spawn state: ", Settings.player_is_spawned)
 	if Settings.player_is_spawned == true:
@@ -96,7 +115,7 @@ func spawn():
 	elif Settings.player_is_spawned == false:
 		# This is written to spawn the player in initially. It can't do movable spawn points yet.
 		# This gets all of the block locations in the spawn_chunk.
-		var spawn_chunk = chunk_manager.chunks.get(Vector3i(0, 0, 0), null)
+		var spawn_chunk = EventBus.chunk_manager.chunks.get(Vector3i(0, 0, 0), null)
 		if spawn_chunk:
 			var random_location_x = randi_range(0, chunk_size)
 			var random_location_z = randi_range(0, chunk_size)

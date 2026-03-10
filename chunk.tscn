@@ -1,17 +1,15 @@
 [gd_scene format=3 uid="uid://xbn4ypmc1oll"]
 
 [ext_resource type="Script" uid="uid://dl7w33xqehnw0" path="res://chunk.gd" id="1_kdh3y"]
+[ext_resource type="Texture2D" uid="uid://tjx2w77isjok" path="res://blocks/textures/atlas.png" id="2_eat54"]
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_kdh3y"]
-cull_mode = 2
-depth_draw_mode = 1
-vertex_color_use_as_albedo = true
-albedo_color = Color(1, 1, 1, 0.6784314)
-normal_scale = -13.35
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_a0kup"]
+albedo_texture = ExtResource("2_eat54")
+texture_filter = 0
 
 [node name="Chunk" type="StaticBody3D" unique_id=1147404096]
 script = ExtResource("1_kdh3y")
-material = SubResource("StandardMaterial3D_kdh3y")
+material = SubResource("StandardMaterial3D_a0kup")
 
 [node name="TerrainCollision" type="CollisionShape3D" parent="." unique_id=1799023280]
 

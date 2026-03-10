@@ -17,7 +17,8 @@ class_name ChunkManager extends Node
 
 # Cutoff defines how dense the random cubes are. Higher numbers equate to less density.
 @export_range(-1, 1) var cutoff: float = 0.1
-@export var colors: Array[Color]
+#@export var colors: Array[Color]
+@export var block_types: Array[BlockType] = []
 # We will get the random seed in the _ready() function.
 @export var noise_seed: int = 0
 
@@ -30,9 +31,14 @@ var loading_threads: Array = Settings.threads
 
 var chunk_class = preload("res://chunk.tscn")
 var chunks: Dictionary[Vector3i, Chunk] = {}
+var block_colors: PackedColorArray = PackedColorArray()
 
 # This is a boolean that we use to determine if a thread is stopped or not. We use it in thread_is_kill.
 var kill: bool = false
+
+# Signals
+signal blocks_ready(block_types: Array) # This tells other scenes, like Player, when the ChunkManager
+# is ready and has initialized all existing BlockTypes.
 
 func _ready():
 	# Uncomment this to make the world gen random. It's not currently, which can be helpful in testing.
@@ -46,6 +52,8 @@ func _ready():
 	
 	player.add_block.connect(self._on_add_block)
 	player.remove_block.connect(self._on_remove_block)
+	#var x = Chunk.atlas
+	#var number_of_textures_in_atlas = Vector2((Chunk.atlas_size / Settings.texture_size), 1)
 	
 	var chunks_to_generate = []
 	if finite_world == true:
@@ -55,7 +63,12 @@ func _ready():
 	
 	multithreaded_terrain_generation(chunks_to_generate, loading_threads)
 	# This lists every voxel (and its color) in the spawn chunk.
-	#print("Chunks!: ", chunks[Vector3i(0, 0, 0)].voxels)
+	
+	# Tell other scenes we're ready
+	EventBus.blocks_ready.emit(block_types)
+	
+	# This tells everybody when the Chunk Manager (I.E. this file) is ready
+	EventBus.chunk_manager = self
 	
 
 func generate_terrain_finite():
@@ -119,16 +132,20 @@ func get_chunk_queue():
 		# add_chunk_to_screen(x, y)
 
 func generate_chunks(pos):
-	# These three are benchmarking vars.
 	var _voxels = []
 	
 	for chunk in pos:
+		print(chunk)
 		if kill_thread == true:
 			break
 		var new_chunk = chunk_class.instantiate()
+		#print("New chunk: ", new_chunk)
 		new_chunk.position = Vector3i((chunk.x * chunk_size), (chunk.z * chunk_height), (chunk.y * chunk_size))
-		new_chunk.generate_data(chunk_size, chunk_height, random_generator, colors)
+		#print("New chunk position: ", new_chunk.position)
+		new_chunk.generate_data(chunk_size, chunk_height, random_generator, block_types)
+		#print("New chunk data: ", new_chunk.voxels)
 		new_chunk.generate_mesh()
+		#print("Generated new chunk ", new_chunk)
 		# This names each chunk after its coordinates. It divides each chunk's name by the chunk size,
 		# so the second chunk to the left is "(-1, 0, 0)", instead of "(-32, 0, 0)".
 		new_chunk.name = str((new_chunk.position as Vector3i)/Vector3i(chunk_size, chunk_size, chunk_size))
@@ -145,21 +162,23 @@ func multithreaded_terrain_generation(chunks_by_thread, _number_of_threads):
 		if i < loading_threads.size() and not chunks_by_thread[i].is_empty():
 			loading_threads[i].start(func(): generate_chunks(chunks_by_thread[i]))
 
-func _on_add_block(pos: Vector3i):
+func _on_add_block(_pos: Vector3i):
 	var chunk = player_focus.get_collider() as Chunk
-	var chunk_gloc = Vector3i(chunk.global_position)
+	#var _chunk_gloc = Vector3i(chunk.global_position)
 	var local_pos = player_focus.get_ray_hit().remove_position - Vector3i(chunk.global_position)
 	var append_position = player_focus.get_ray_hit().add_position - Vector3i(chunk.global_position)
-	var color = chunk.voxels[local_pos]
-	chunk.voxels[append_position] = color
+	#var color = chunk.voxels[local_pos]
+	var selected_block = player.selected_block_type
+	chunk.voxels[append_position] = selected_block
+	#print(chunk.voxels[append_position].name)
 	chunk.regenerate_mesh()
 	
 	# TODO: Add logic that prevents a voxel from being added to a chunk outside of the chunk's boundaries
 	# Additionally, prevent adding chunks that would clip with the player. Or anything, really.
 
-func _on_remove_block(pos: Vector3i):
+func _on_remove_block(_pos: Vector3i):
 	var chunk = player_focus.get_collider() as Chunk
-	var chunk_gloc = Vector3i(chunk.global_position)
+	var _chunk_gloc = Vector3i(chunk.global_position)
 	var local_pos = player_focus.get_ray_hit().remove_position - Vector3i(chunk.global_position)
 	
 	if chunk.voxels.has(local_pos):

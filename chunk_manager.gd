@@ -135,7 +135,7 @@ func generate_chunks(pos):
 	var _voxels = []
 	
 	for chunk in pos:
-		print(chunk)
+		#print(chunk)
 		if kill_thread == true:
 			break
 		var new_chunk = chunk_class.instantiate()
@@ -165,7 +165,7 @@ func multithreaded_terrain_generation(chunks_by_thread, _number_of_threads):
 func _on_add_block(_pos: Vector3i):
 	var chunk = player_focus.get_collider() as Chunk
 	#var _chunk_gloc = Vector3i(chunk.global_position)
-	var local_pos = player_focus.get_ray_hit().remove_position - Vector3i(chunk.global_position)
+#	var local_pos = player_focus.get_ray_hit().remove_position - Vector3i(chunk.global_position)
 	var append_position = player_focus.get_ray_hit().add_position - Vector3i(chunk.global_position)
 	#var color = chunk.voxels[local_pos]
 	var selected_block = player.selected_block_type

@@ -5,6 +5,8 @@
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_a0kup"]
 albedo_texture = ExtResource("2_eat54")
+rim = 0.1
+ao_light_affect = 0.8
 texture_filter = 0
 
 [node name="Chunk" type="StaticBody3D" unique_id=1147404096]

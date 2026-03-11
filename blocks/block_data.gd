@@ -23,5 +23,10 @@ extends Resource
 # texture this block uses.
 @export var uv_offset: Vector2 = Vector2.ZERO
 
+# Enable multiple textures per block, I.E. grassy dirt
+@export var uv_top: Vector2 = Vector2.ZERO
+@export var uv_side: Vector2 = Vector2.ZERO
+@export var uv_bottom: Vector2 = Vector2.ZERO
+
 # Set to False for things like water, tall grass.
 @export var is_solid: bool = true

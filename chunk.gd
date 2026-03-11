@@ -178,6 +178,7 @@ func add_face(face: Face, vertice_position: Vector3, block: BlockType) -> void:
 			vertices.append(vertex + vertice_position)
 			normals.append(face_normals[face])
 			
+			# Determine which corner of the voxel we're working with
 			var uv: Vector2
 			match face:
 				Face.FRONT:		uv = Vector2(vertex.x, 1.0 - vertex.y)
@@ -186,8 +187,15 @@ func add_face(face: Face, vertice_position: Vector3, block: BlockType) -> void:
 				Face.RIGHT:		uv = Vector2(1.0 - vertex.z, 1.0 - vertex.y)
 				Face.TOP:		uv = Vector2(vertex.x, vertex.z)
 				Face.BOTTOM:		uv = Vector2(vertex.x, 1.0 - vertex.z)
+			
+			# Apply textures, allowing for multiple textures on one voxel (like with grassy dirt)
+			var uv_offset: Vector2
+			match face:
+				Face.TOP:		uv_offset = block.uv_top
+				Face.BOTTOM:		uv_offset = block.uv_bottom
+				_:				uv_offset = block.uv_side
 	
-			uv = (uv + block.uv_offset) / number_of_textures_in_atlas
+			uv = (uv + uv_offset) / number_of_textures_in_atlas
 			uvs.append(uv)
 
 func commit_mesh():
@@ -198,9 +206,9 @@ func commit_mesh():
 	arrays[Mesh.ARRAY_NORMAL] = normals
 	arrays[Mesh.ARRAY_TEX_UV] = uvs
 	new_mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
-	print("Vertex count: ", vertices.size())
-	print("UV count: ", uvs.size())
-	print("UV sample: ", uvs[0] if uvs.size() > 0 else "EMPTY")
+	#print("Vertex count: ", vertices.size())
+	#print("UV count: ", uvs.size())
+	#print("UV sample: ", uvs[0] if uvs.size() > 0 else "EMPTY")
 	new_mesh.surface_set_material(0, material)
 	mesh_instance.mesh = new_mesh
 	collision_shape.shape = new_mesh.create_trimesh_shape()
@@ -211,22 +219,22 @@ func commit_mesh():
 	else: return
 		
 func regenerate_mesh():
-	var start_time = Time.get_ticks_msec()
+	#var start_time = Time.get_ticks_msec()
 	
 	vertices.clear()
-	var vertice_time = Time.get_ticks_msec() - start_time
+	#var vertice_time = Time.get_ticks_msec() - start_time
 	
 	normals.clear()
-	var normals_time = Time.get_ticks_msec() - start_time
+	#var normals_time = Time.get_ticks_msec() - start_time
 	
 	uvs.clear()
-	var uvs_time = Time.get_ticks_msec() - start_time
+	#var uvs_time = Time.get_ticks_msec() - start_time
 	
 	generate_mesh()
-	var generate_time = Time.get_ticks_msec() - start_time
+	#var generate_time = Time.get_ticks_msec() - start_time
 	
 	commit_mesh()
-	var commit_time = Time.get_ticks_msec() - start_time - generate_time
+	#var commit_time = Time.get_ticks_msec() - start_time - generate_time
 	
 	#print(
 	#"Cleared vertices: %s\nNormals: %s \nUVs: %s \nGenerated Mesh: %s \nCommit: %s" % [

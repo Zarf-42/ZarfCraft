@@ -69,9 +69,13 @@ func get_target(_collision_point):
 		cursor_location.text = "Cursor: %s" % [current_block]
 		
 		var local_voxel_pos = current_block - Vector3i(current_chunk.global_position)
-		var block_type = current_chunk.voxels[local_voxel_pos].block_name
-		
-		type.text = "Type: " + block_type
+		if current_chunk.regen_mutex.try_lock():
+			if current_chunk.voxels.has(local_voxel_pos):
+				var block_type = current_chunk.voxels[local_voxel_pos].block_name
+				type.text = "Type: " + block_type
+			else:
+				type.text = "Type: Air"
+			current_chunk.regen_mutex.unlock()
 
 		return pos
 	else:

@@ -14,6 +14,7 @@ extends Resource
 # We need some way to determine what resources will drop when this block is broken.
 
 # Resources this block can drop:
+# TODO: I might want to put these in an enum.
 @export var by_hand: String = "None"
 @export var by_axe: String = ""
 @export var by_pickaxe: String = ""
@@ -21,7 +22,7 @@ extends Resource
 
 # All block textures are combined into an atlas. We use the pixel coordinates to determine which
 # texture this block uses.
-@export var uv_offset: Vector2 = Vector2.ZERO
+#@export var uv_offset: Vector2 = Vector2.ZERO
 
 # Enable multiple textures per block, I.E. grassy dirt
 @export var uv_top: Vector2 = Vector2.ZERO

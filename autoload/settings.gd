@@ -8,7 +8,7 @@ var mouse_mode = Input.MOUSE_MODE_CAPTURED
 # but until I've eliminated any other Typed Arrays relating to Nodes, this needs to stay as it is.
 #var threads: Array[Thread]
 var threads: Array = []
-@export var chunk_render_distance: int = 8
+@export var chunk_render_distance: int = 4
 @export var mouse_sensitivity: float = 0.27
 @export var single_threaded: bool = false
 @export var player_reach: Vector3 = Vector3(4, 4, 4)

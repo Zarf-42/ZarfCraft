@@ -31,12 +31,16 @@ var is_rebuilding: bool = false
 var regen_thread: Thread = Thread.new()
 var regen_mutex: Mutex = Mutex.new()
 var rebuild_count: int = 0
+
 # This is for making commit_collision run when a batch of commits are ready to go, instead of once
 # each time the user changes a block.
 var commit_collision_timer: SceneTreeTimer = null
 
 # For precomputing UVs. Look in _init for the precomp code.
 var face_vertex_uvs: Dictionary = {}
+
+# For fixing freeze caused by all chunks being generated on the main thread
+var was_generated_by_thread: bool = false
 
 # These are the vertice coordinates. The cube's center is at 0,0,0. The cube is 1 unit long, 
 # so each vertice is 0.5 units out from the center. X is left/right, Y is vertical, Z is depth.
@@ -98,11 +102,15 @@ func _init():
 func _ready() -> void:
 	#surface_array.resize(Mesh.ARRAY_MAX)
 	#mesh_instance.mesh = ArrayMesh.new()
-	if voxels.is_empty(): return
+	if voxels.is_empty():
+		#print("Skipping ", name, "commit_mesh, mesh is empty")
+		return
+	if was_generated_by_thread:
+		#print("Skipping ", name, " commit_mesh, already built")
+		return
+	#print("Calling ", name, "commit_mesh from _ready()")
 	
 	commit_mesh()
-	#print("%s: _ready - voxels type = %s, size = %s" % [name, typeof(voxels), voxels.size() if voxels else "NULL"])
-	#print("Finished a chunk")
 
 # This function determines the position of each block in a given chunk. I believe this is where we
 # need to record the location of each block, perhaps in a dictionary?
@@ -143,6 +151,7 @@ func generate_mesh():
 	if benchmarking == true:
 		if t2-start_time > 0:
 			print("Atlas lookup: ", t2-start_time, "ms")
+		pass
 	
 	for pos in voxels:
 		var block_type = voxels[pos]
@@ -161,55 +170,10 @@ func generate_mesh():
 		
 	var t3 = Time.get_ticks_msec()
 	if benchmarking == true:
-		print("Face gen: ", t3-t2, "ms, voxel count: ", voxels.size())
-		print("Voxels per ms: ", voxels.size()/(t3-t2))
-		print("Total face time: ", face_time, "ms")
-		face_time = 0
-			
-# The "mesh" here is that of the chunk itself. This function places each face for every block in a chunk.
-# Simultaneously, it avoids placing faces if they are covered by a neighboring block, speeding up render
-# times a lot.
-#func generate_mesh():
-	##var start = Time.get_ticks_msec()
-	##This skips generating the chunk if said chunk is totally empty. I think this is going to be rare,
-	## but a good edge case to check against.
-	#if voxels.is_empty(): return
-	#
-	#var t1 = Time.get_ticks_msec()
-	#
-	#var atlas: Texture2D = self.material.albedo_texture
-	#var atlas_size: int = atlas.get_size()[0]
-	#number_of_textures_in_atlas = Vector2((atlas_size / Settings.texture_size), 1)
-	#
-	#var t2 = Time.get_ticks_msec()
-	#if benchmarking == true:
-		#if t2-t1 > 0:
-			#print("Atlas lookup: ", t2-t1, "ms")
-		##print("Generated Mesh: %s ms" %(Time.get_ticks_msec() - start))
-#
-	#for pos in voxels:
-		#var block_type = voxels[pos]
-#
-	### These If statements help optimize our terrain's meshes. If a cube has a neighbor, we don't
-	### render the face that touches that neighbor. This prevents invisible faces from being computed.
-		#if not has_neighbor(voxels, Face.FRONT, pos):
-			#add_face(Face.FRONT, pos, block_type)
-		#if not has_neighbor(voxels, Face.BACK, pos):
-			#add_face(Face.BACK, pos, block_type)
-		#if not has_neighbor(voxels, Face.LEFT, pos):
-			#add_face(Face.LEFT, pos, block_type)
-		#if not has_neighbor(voxels, Face.RIGHT, pos):
-			#add_face(Face.RIGHT, pos, block_type)
-		#if not has_neighbor(voxels, Face.TOP, pos):
-			#add_face(Face.TOP, pos, block_type)
-		#if not has_neighbor(voxels, Face.BOTTOM, pos):
-			#add_face(Face.BOTTOM, pos, block_type)
-	#var t3 = Time.get_ticks_msec()
-	#if benchmarking == true:
 		#print("Face gen: ", t3-t2, "ms, voxel count: ", voxels.size())
 		#print("Voxels per ms: ", voxels.size()/(t3-t2))
 		#print("Total face time: ", face_time, "ms")
-		#face_time = 0
+		face_time = 0
 
 func has_neighbor(data: Dictionary[Vector3i, BlockType], face: Face, position: Vector3) -> bool:
 	# This checks all adjacent positions for neighbors. If one exists, we skip generating that face.

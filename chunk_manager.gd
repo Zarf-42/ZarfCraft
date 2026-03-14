@@ -21,11 +21,47 @@ var kill_thread: bool = false
 
 var loading_threads: Array = Settings.threads
 
+# We've sped up chunk generation so much that the act of placing all available chunks in the scene
+# is slowing things down to the point where it feels like the game is frozen when we first start.
+# We need to make a commit queue that will divide that work into different frames, as it all needs
+# to happen on one thread.
+var chunk_commit_queue: Array = []
+
 var chunk_class = preload("res://chunk.tscn")
 var chunks: Dictionary[Vector3i, Chunk] = {}
 
 # This is a boolean that we use to determine if a thread is stopped or not. We use it in thread_is_kill.
 var kill: bool = false
+
+func _process(delta: float):
+	#Added to address the freeze on spawn when putting tons of chunks to the screen at once
+	if chunk_commit_queue.is_empty():
+		return
+	#print("Queue size: ", chunk_commit_queue.size())
+	# This is to see how fast the user's computer is, and determine the length of the queue based
+	# on that.
+	var frame_time_scale = 0.1
+	var max_frame_time = 0.01
+	# Frame Time Scale is how quickly this function scales up to taking more of each frame for
+	# committing meshes. Max Frame Time is a cap on how much time can be taken.
+	var budget_ms = min(delta * 1000 * frame_time_scale, max_frame_time)
+	var frame_start = Time.get_ticks_msec()
+	var commits_this_frame = 0
+	while not chunk_commit_queue.is_empty():
+		if Time.get_ticks_msec() - frame_start >= budget_ms:
+			break
+		# pop this chunk into the front of the queue
+		var chunk = chunk_commit_queue.pop_front()
+		var t = Time.get_ticks_msec()
+		chunk.commit_visuals()
+		var visuals_time = Time.get_ticks_msec() - t
+		t = Time.get_ticks_msec()
+		chunk.commit_collision()
+		var collision_time = Time.get_ticks_msec() - t
+		commits_this_frame += 1
+		if commits_this_frame == 1:
+			print("visuals: ", visuals_time, "ms  collision: ", collision_time, "ms")
+	print("commits this frame: ", commits_this_frame, "  queue: ", chunk_commit_queue.size())
 
 func _ready():
 	# Uncomment this to make the world gen random. It's not currently, which can be helpful in testing.
@@ -108,28 +144,43 @@ func get_chunk_queue():
 		# This needs to be whatever function actually adds a chunk to the worldspace.
 		# add_chunk_to_screen(x, y)
 
+#func generate_chunks(pos):
+	#var _voxels = []
+	#
+	#for chunk in pos:
+		#if kill_thread == true:
+			#break
+		#var new_chunk = chunk_class.instantiate()
+		##print("New chunk: ", new_chunk)
+		#new_chunk.position = Vector3i((chunk.x * chunk_size), (chunk.z * chunk_height), (chunk.y * chunk_size))
+		##print("New chunk position: ", new_chunk.position)
+		#new_chunk.generate_data(chunk_size, chunk_height, random_generator, block_types)
+		##print("New chunk data: ", new_chunk.voxels)
+		#new_chunk.generate_mesh()
+		##print("Generated new chunk ", new_chunk)
+		## This names each chunk after its coordinates. It divides each chunk's name by the chunk size,
+		## so the second chunk to the left is "(-1, 0, 0)", instead of "(-32, 0, 0)".
+		#new_chunk.name = str((new_chunk.position as Vector3i)/Vector3i(chunk_size, chunk_size, chunk_size))
+		## This returns the location and color of every voxel in the chunk. We should save this so it's accessible somehow.
+		## print("New chunk: ", new_chunk.voxels)
+		#chunks[chunk] = new_chunk
+		#call_deferred("add_child", new_chunk)
+
 func generate_chunks(pos):
-	var _voxels = []
-	
 	for chunk in pos:
-		#print(chunk)
 		if kill_thread == true:
 			break
 		var new_chunk = chunk_class.instantiate()
-		#print("New chunk: ", new_chunk)
 		new_chunk.position = Vector3i((chunk.x * chunk_size), (chunk.z * chunk_height), (chunk.y * chunk_size))
-		#print("New chunk position: ", new_chunk.position)
 		new_chunk.generate_data(chunk_size, chunk_height, random_generator, block_types)
-		#print("New chunk data: ", new_chunk.voxels)
 		new_chunk.generate_mesh()
-		#print("Generated new chunk ", new_chunk)
-		# This names each chunk after its coordinates. It divides each chunk's name by the chunk size,
-		# so the second chunk to the left is "(-1, 0, 0)", instead of "(-32, 0, 0)".
-		new_chunk.name = str((new_chunk.position as Vector3i)/Vector3i(chunk_size, chunk_size, chunk_size))
-		# This returns the location and color of every voxel in the chunk. We should save this so it's accessible somehow.
-		# print("New chunk: ", new_chunk.voxels)
+		new_chunk.was_generated_by_thread = true
 		chunks[chunk] = new_chunk
 		call_deferred("add_child", new_chunk)
+		call_deferred("add_to_commit_queue", new_chunk)
+
+func add_to_commit_queue(chunk: Chunk):
+	chunk_commit_queue.append(chunk)
 
 func multithreaded_terrain_generation(chunks_by_thread, _number_of_threads):
 	var spawn_point = [Vector3i(0, 0, 0)]

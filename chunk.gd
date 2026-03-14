@@ -6,7 +6,7 @@ extends StaticBody3D
 
 # Following https://www.youtube.com/watch?v=Pfqfr3zFyKI
 
-@export var benchmarking: bool = false
+@export var benchmarking: bool = true
 
 @export var material: Material
 
@@ -21,8 +21,10 @@ var vertices = PackedVector3Array()
 var normals = PackedVector3Array()
 var uvs = PackedVector2Array()
 
+# For Benchmarking
 #var total_chunks = 0
 #var chunk_gen_time = 0
+var face_time: int = 0
 
 # These are implemented to make regenerating chunks multithreaded.
 var is_rebuilding: bool = false
@@ -32,6 +34,9 @@ var rebuild_count: int = 0
 # This is for making commit_collision run when a batch of commits are ready to go, instead of once
 # each time the user changes a block.
 var commit_collision_timer: SceneTreeTimer = null
+
+# For precomputing UVs. Look in _init for the precomp code.
+var face_vertex_uvs: Dictionary = {}
 
 # These are the vertice coordinates. The cube's center is at 0,0,0. The cube is 1 unit long, 
 # so each vertice is 0.5 units out from the center. X is left/right, Y is vertical, Z is depth.
@@ -74,6 +79,22 @@ const face_normals: Dictionary[Face, Vector3] = {
 	Face.TOP: Vector3(0, 1, 0)
 }
 
+func _init():
+	# For precomputing UVs. This helps speed up add_face, thereby speeding up chunk generation.
+	for face in Face.values():
+		face_vertex_uvs[face] = []
+		for i in range(8): # since we have 8 faces
+			var v = cube_vertices[i]
+			var uv: Vector2
+			match face:
+				Face.FRONT: uv = Vector2(v.x, 1.0 - v.y)
+				Face.BACK: uv = Vector2(1.0 - v.x, 1.0 - v.y)
+				Face.LEFT: uv = Vector2(v.z, 1.0 - v.y)
+				Face.RIGHT: uv = Vector2(1.0 - v.z, 1.0 - v.y)
+				Face.TOP: uv = Vector2(v.x, v.z)
+				Face.BOTTOM: uv = Vector2(v.x, 1.0 - v.z)
+			face_vertex_uvs[face].append(uv)
+			
 func _ready() -> void:
 	#surface_array.resize(Mesh.ARRAY_MAX)
 	#mesh_instance.mesh = ArrayMesh.new()
@@ -110,44 +131,100 @@ func generate_data(chunk_size: int, max_height: int, noise: Noise, block_types: 
 			for y in range(min(local_height, max_height)):
 				voxels[Vector3i(x, y, z)] = color_array[y % color_array.size()]
  
-# The "mesh" here is that of the chunk itself. This function places each face for every block in a chunk.
-# Simultaneously, it avoids placing faces if they are covered by a neighboring block, speeding up render
-# times a lot.
 func generate_mesh():
-	var start = Time.get_ticks_msec()
-	#This skips generating the chunk if said chunk is totally empty. I think this is going to be rare,
-	# but a good edge case to check against.
 	if voxels.is_empty(): return
+	var start_time = Time.get_ticks_msec()
 	
 	var atlas: Texture2D = self.material.albedo_texture
 	var atlas_size: int = atlas.get_size()[0]
 	number_of_textures_in_atlas = Vector2((atlas_size / Settings.texture_size), 1)
+	
+	var t2 = Time.get_ticks_msec()
 	if benchmarking == true:
-		print("Generated Mesh: %s ms" %(Time.get_ticks_msec() - start))
-
+		if t2-start_time > 0:
+			print("Atlas lookup: ", t2-start_time, "ms")
+	
 	for pos in voxels:
 		var block_type = voxels[pos]
-
-	## These If statements help optimize our terrain's meshes. If a cube has a neighbor, we don't
-	## render the face that touches that neighbor. This prevents invisible faces from being computed.
-		if not has_neighbor(voxels, Face.FRONT, pos):
+		if not voxels.has(Vector3i(pos.x, pos.y, pos.z + 1)):
 			add_face(Face.FRONT, pos, block_type)
-		if not has_neighbor(voxels, Face.BACK, pos):
+		if not voxels.has(Vector3i(pos.x, pos.y, pos.z - 1)):
 			add_face(Face.BACK, pos, block_type)
-		if not has_neighbor(voxels, Face.LEFT, pos):
+		if not voxels.has(Vector3i(pos.x - 1, pos.y, pos.z)):
 			add_face(Face.LEFT, pos, block_type)
-		if not has_neighbor(voxels, Face.RIGHT, pos):
+		if not voxels.has(Vector3i(pos.x + 1, pos.y, pos.z)):
 			add_face(Face.RIGHT, pos, block_type)
-		if not has_neighbor(voxels, Face.TOP, pos):
+		if not voxels.has(Vector3i(pos.x, pos.y + 1, pos.z)):
 			add_face(Face.TOP, pos, block_type)
-		if not has_neighbor(voxels, Face.BOTTOM, pos):
+		if not voxels.has(Vector3i(pos.x, pos.y - 1, pos.z)):
 			add_face(Face.BOTTOM, pos, block_type)
+		
+	var t3 = Time.get_ticks_msec()
+	if benchmarking == true:
+		print("Face gen: ", t3-t2, "ms, voxel count: ", voxels.size())
+		print("Voxels per ms: ", voxels.size()/(t3-t2))
+		print("Total face time: ", face_time, "ms")
+		face_time = 0
+			
+# The "mesh" here is that of the chunk itself. This function places each face for every block in a chunk.
+# Simultaneously, it avoids placing faces if they are covered by a neighboring block, speeding up render
+# times a lot.
+#func generate_mesh():
+	##var start = Time.get_ticks_msec()
+	##This skips generating the chunk if said chunk is totally empty. I think this is going to be rare,
+	## but a good edge case to check against.
+	#if voxels.is_empty(): return
+	#
+	#var t1 = Time.get_ticks_msec()
+	#
+	#var atlas: Texture2D = self.material.albedo_texture
+	#var atlas_size: int = atlas.get_size()[0]
+	#number_of_textures_in_atlas = Vector2((atlas_size / Settings.texture_size), 1)
+	#
+	#var t2 = Time.get_ticks_msec()
+	#if benchmarking == true:
+		#if t2-t1 > 0:
+			#print("Atlas lookup: ", t2-t1, "ms")
+		##print("Generated Mesh: %s ms" %(Time.get_ticks_msec() - start))
+#
+	#for pos in voxels:
+		#var block_type = voxels[pos]
+#
+	### These If statements help optimize our terrain's meshes. If a cube has a neighbor, we don't
+	### render the face that touches that neighbor. This prevents invisible faces from being computed.
+		#if not has_neighbor(voxels, Face.FRONT, pos):
+			#add_face(Face.FRONT, pos, block_type)
+		#if not has_neighbor(voxels, Face.BACK, pos):
+			#add_face(Face.BACK, pos, block_type)
+		#if not has_neighbor(voxels, Face.LEFT, pos):
+			#add_face(Face.LEFT, pos, block_type)
+		#if not has_neighbor(voxels, Face.RIGHT, pos):
+			#add_face(Face.RIGHT, pos, block_type)
+		#if not has_neighbor(voxels, Face.TOP, pos):
+			#add_face(Face.TOP, pos, block_type)
+		#if not has_neighbor(voxels, Face.BOTTOM, pos):
+			#add_face(Face.BOTTOM, pos, block_type)
+	#var t3 = Time.get_ticks_msec()
+	#if benchmarking == true:
+		#print("Face gen: ", t3-t2, "ms, voxel count: ", voxels.size())
+		#print("Voxels per ms: ", voxels.size()/(t3-t2))
+		#print("Total face time: ", face_time, "ms")
+		#face_time = 0
 
 func has_neighbor(data: Dictionary[Vector3i, BlockType], face: Face, position: Vector3) -> bool:
 	# This checks all adjacent positions for neighbors. If one exists, we skip generating that face.
 	return data.has(position + face_normals[face])
 
 func add_face(face: Face, vertice_position: Vector3, block: BlockType) -> void:
+	var start_time = Time.get_ticks_msec()
+	
+	var uv_offset: Vector2
+	match face:
+		Face.TOP: uv_offset = block.uv_top
+		Face.BOTTOM: uv_offset = block.uv_bottom
+		_: uv_offset = block.uv_side
+	
+	
 	# Add UVs so we can see textures	
 	var indices = face_indices[face]
 	for triangle in indices:
@@ -155,26 +232,30 @@ func add_face(face: Face, vertice_position: Vector3, block: BlockType) -> void:
 			var vertex = cube_vertices[index]
 			vertices.append(vertex + vertice_position)
 			normals.append(face_normals[face])
-			
-			# Determine which corner of the voxel we're working with
 			var uv: Vector2
-			match face:
-				Face.FRONT:		uv = Vector2(vertex.x, 1.0 - vertex.y)
-				Face.BACK:		uv = Vector2(1.0 - vertex.x, 1.0 - vertex.y)
-				Face.LEFT:		uv = Vector2(vertex.z, 1.0 - vertex.y)
-				Face.RIGHT:		uv = Vector2(1.0 - vertex.z, 1.0 - vertex.y)
-				Face.TOP:		uv = Vector2(vertex.x, vertex.z)
-				Face.BOTTOM:		uv = Vector2(vertex.x, 1.0 - vertex.z)
-			
-			# Apply textures, allowing for multiple textures on one voxel (like with grassy dirt)
-			var uv_offset: Vector2
-			match face:
-				Face.TOP:		uv_offset = block.uv_top
-				Face.BOTTOM:		uv_offset = block.uv_bottom
-				_:				uv_offset = block.uv_side
-	
-			uv = (uv + uv_offset) / number_of_textures_in_atlas
+			uv = (face_vertex_uvs[face][index] + uv_offset) / number_of_textures_in_atlas
 			uvs.append(uv)
+			
+			## Determine which corner of the voxel we're working with
+			#var uv: Vector2
+			#match face:
+				#Face.FRONT:		uv = Vector2(vertex.x, 1.0 - vertex.y)
+				#Face.BACK:		uv = Vector2(1.0 - vertex.x, 1.0 - vertex.y)
+				#Face.LEFT:		uv = Vector2(vertex.z, 1.0 - vertex.y)
+				#Face.RIGHT:		uv = Vector2(1.0 - vertex.z, 1.0 - vertex.y)
+				#Face.TOP:		uv = Vector2(vertex.x, vertex.z)
+				#Face.BOTTOM:	uv = Vector2(vertex.x, 1.0 - vertex.z)
+			#
+			## Apply textures, allowing for multiple textures on one voxel (like with grassy dirt)
+			#var uv_offset: Vector2
+			#match face:
+				#Face.TOP:		uv_offset = block.uv_top
+				#Face.BOTTOM:		uv_offset = block.uv_bottom
+				#_:				uv_offset = block.uv_side
+	#
+			#uv = (uv + uv_offset) / number_of_textures_in_atlas
+			#uvs.append(uv)
+	face_time += Time.get_ticks_msec() - start_time
 
 func commit_mesh():
 	# This used to be the main function that generated chunks. Now it generates the initial chunks
@@ -202,7 +283,8 @@ func commit_visuals():
 	new_mesh.surface_set_material(0, material)
 	mesh_instance.mesh = new_mesh
 	if benchmarking == true:
-		print("Commit Visuals: %s ms" % (Time.get_ticks_msec() - start))
+		pass
+		#print("Commit Visuals: %s ms" % (Time.get_ticks_msec() - start))
 
 func commit_collision():
 	collision_shape.shape = mesh_instance.mesh.create_trimesh_shape()
@@ -217,7 +299,8 @@ func threaded_rebuild():
 	regen_thread = Thread.new()
 	regen_thread.start(func():
 		if benchmarking == true:
-			print("Running on thread: ", OS.get_thread_caller_id())
+			pass
+			#print("Running on thread: ", OS.get_thread_caller_id())
 		regen_mutex.lock()
 		var start_time = Time.get_ticks_msec()
 		vertices.clear()
@@ -234,9 +317,10 @@ func threaded_rebuild():
 		var commit_collision_time = Time.get_ticks_msec() - start_time
 		finish_rebuild.call_deferred()
 		if benchmarking == true:
-			print(
-			"Cleared vertices: %s ms\nNormals: %s ms\nUVs: %s ms" % 
-			[vertice_time, normals_time, uvs_time])
+			pass
+			#print(
+			#"Cleared vertices: %s ms\nNormals: %s ms\nUVs: %s ms" % 
+			#[vertice_time, normals_time, uvs_time])
 			)
 
 func schedule_collision_rebuild():
@@ -250,7 +334,9 @@ func schedule_collision_rebuild():
 		commit_collision()
 		commit_collision_timer = null
 	)
-	print("Commit Collision: %s ms" % (Time.get_ticks_msec() - start))
+	if benchmarking == true:
+		pass
+		#print("Commit Collision: %s ms" % (Time.get_ticks_msec() - start))
 
 func finish_rebuild():
 	regen_thread.wait_to_finish()

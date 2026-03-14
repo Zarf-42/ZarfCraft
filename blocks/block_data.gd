@@ -3,22 +3,23 @@ extends Resource
 
 # This is the Block Data resource prototype. Data that all block types need to have access to is
 # defined here.
-@export var block_name: String = "Unnamed Block"
-#@export var texture: Texture2D
-#@export var color: = Color.WHITE # This is temporary; colors will eventually be removed.
+@export var block_name: String = ""
 @export var index: int = 0
 @export var breakable: bool = true # Blocks that players can't break in normal circumstances (like
 # bedrock in Minecraft) should be set to False.
 @export var hardness: int = 10 # This will determine how long it takes to break a block.
-# We need some way to determine if breaking this block by hand will drop resources.
-# We need some way to determine what resources will drop when this block is broken.
 
-# Resources this block can drop:
-# TODO: I might want to put these in an enum.
-@export var by_hand: String = "None"
-@export var by_axe: String = ""
-@export var by_pickaxe: String = ""
-@export var by_hoe: String = ""
+# This drop table defines what tools will let this block drop itself.
+# We may need to modify this so that we can have a percentage chance of certain drops. I.E. a machine
+# might have a chance of breaking and dropping a basic component instead of the machine, unless a
+# special device is used. I.E. wrenches in Tekkit.
+@export var drops: Dictionary = {
+	"hand": [],
+	"pickaxe": [],
+	"axe": [],
+	"hoe": [],
+	"shovel": [],
+}
 
 # All block textures are combined into an atlas. We use the pixel coordinates to determine which
 # texture this block uses.

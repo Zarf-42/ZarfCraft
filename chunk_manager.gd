@@ -162,7 +162,8 @@ func _on_add_block(_pos: Vector3i):
 	chunk.regen_mutex.lock()
 	chunk.voxels[append_position] = selected_block
 	chunk.regen_mutex.unlock()
-	chunk.threaded_rebuild()
+	chunk.player_initiated_rebuild = true
+	chunk.request_rebuild()
 
 	# TODO: Add logic that prevents a voxel from being added to a chunk outside of the chunk's boundaries
 	# Additionally, prevent adding chunks that would clip with the player. Or anything, really.
@@ -175,6 +176,7 @@ func _on_remove_block(_pos: Vector3i):
 		chunk.regen_mutex.lock()
 		chunk.voxels.erase(local_pos)
 		chunk.regen_mutex.unlock()
+		chunk.player_initiated_rebuild = true
 		chunk.threaded_rebuild()
 
 func remove_chunk(chunk_position: Vector3i):

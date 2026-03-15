@@ -32,6 +32,10 @@ var regen_thread: Thread = Thread.new()
 var regen_mutex: Mutex = Mutex.new()
 var rebuild_count: int = 0
 
+# This is to help address lag when adding or removing a block.
+var needs_rebuild: bool = false
+var player_initiated_rebuild: bool = false
+
 # This is for making commit_collision run when a batch of commits are ready to go, instead of once
 # each time the user changes a block.
 var commit_collision_timer: SceneTreeTimer = null
@@ -82,6 +86,11 @@ const face_normals: Dictionary[Face, Vector3] = {
 	Face.BOTTOM: Vector3(0, -1, 0),
 	Face.TOP: Vector3(0, 1, 0)
 }
+
+func _process(_delta: float):
+	if needs_rebuild and not is_rebuilding:
+		needs_rebuild = false
+		threaded_rebuild()
 
 func _init():
 	# For precomputing UVs. This helps speed up add_face, thereby speeding up chunk generation.
@@ -253,6 +262,10 @@ func commit_visuals():
 func commit_collision():
 	collision_shape.shape = mesh_instance.mesh.create_trimesh_shape()
 
+# This is to address lag when adding or removing blocks.
+func request_rebuild():
+	needs_rebuild = true
+
 func threaded_rebuild():
 	rebuild_count += 1
 	if is_rebuilding:
@@ -276,7 +289,12 @@ func threaded_rebuild():
 		generate_mesh() # Generate_mesh has its own timer and print funciton.
 		regen_mutex.unlock()
 		commit_visuals.call_deferred() # Same here.
-		schedule_collision_rebuild.call_deferred()
+		if player_initiated_rebuild:
+			commit_collision.call_deferred() # This makes this happen immediately, so players
+			# modifying blocks should see the effect instantly
+			player_initiated_rebuild = false
+		else:
+			schedule_collision_rebuild.call_deferred()
 		#commit_collision.call_deferred()
 		#var commit_collision_time = Time.get_ticks_msec() - start_time
 		finish_rebuild.call_deferred()

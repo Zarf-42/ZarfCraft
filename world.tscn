@@ -8,6 +8,7 @@
 [ext_resource type="Resource" uid="uid://scvqdjpv5bj1" path="res://blocks/stone.tres" id="5_ioo17"]
 [ext_resource type="Resource" uid="uid://dc8bdi0gnxrqj" path="res://blocks/grass.tres" id="6_wse8f"]
 [ext_resource type="Resource" uid="uid://bthlsld2koe4s" path="res://blocks/dirt.tres" id="7_ic0uy"]
+[ext_resource type="Resource" uid="uid://desiq27xomx5u" path="res://blocks/bedrock.tres" id="8_ioo17"]
 
 [sub_resource type="CameraAttributesPractical" id="CameraAttributesPractical_aqk2v"]
 auto_exposure_enabled = true
@@ -20,7 +21,7 @@ environment = ExtResource("4_aqk2v")
 camera_attributes = SubResource("CameraAttributesPractical_aqk2v")
 
 [node name="ChunkManager" parent="." unique_id=1812560747 instance=ExtResource("3_tlwt5")]
-block_types = Array[ExtResource("4_gbfbk")]([ExtResource("5_ioo17"), ExtResource("6_wse8f"), ExtResource("7_ic0uy")])
+block_types = Array[ExtResource("4_gbfbk")]([ExtResource("5_ioo17"), ExtResource("6_wse8f"), ExtResource("7_ic0uy"), ExtResource("8_ioo17")])
 
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="." unique_id=1211244638]
 transform = Transform3D(0.952643, 0.08094178, 0.29312116, -0.30409107, 0.2550673, 0.91786134, -0.0004722476, -0.96352965, 0.2676017, 0.77613187, 2.4054737, 6.7321405)

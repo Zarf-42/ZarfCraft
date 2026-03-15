@@ -8,12 +8,13 @@ var mouse_mode = Input.MOUSE_MODE_CAPTURED
 # but until I've eliminated any other Typed Arrays relating to Nodes, this needs to stay as it is.
 #var threads: Array[Thread]
 var threads: Array = []
-@export var chunk_render_distance: int = 8
+@export var chunk_render_distance: int = 4
 @export var mouse_sensitivity: float = 0.27
 @export var single_threaded: bool = false
 @export var player_reach: Vector3 = Vector3(4, 4, 4)
 @onready var player_is_spawned = false
 @export var texture_size: int = 16 # The size of textures used in Atlases. Defaults to a square.
+@export var default_block: String = "Stone" # This is so we can configure different default block types.
 var pause_state: bool = false
 
 func _ready():

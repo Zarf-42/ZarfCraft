@@ -36,8 +36,8 @@ var chunks: Dictionary[Vector3i, Chunk] = {}
 # This is a boolean that we use to determine if a thread is stopped or not. We use it in thread_is_kill.
 var kill: bool = false
 
-func _process(delta: float):
-	var visual_time = 0
+func _process(_delta: float):
+	#var visual_time = 0
 	while not chunk_visual_queue.is_empty():
 		var chunk = chunk_visual_queue.pop_front() # pop this chunk into the front of the queue
 		#var t = Time.get_ticks_msec()
@@ -48,10 +48,10 @@ func _process(delta: float):
 	# Commit one collision chunk per frame
 	if not chunk_collision_queue.is_empty():
 		var chunk = chunk_collision_queue.pop_front() # pop this chunk into the front of the queue
-		#var t = Time.get_ticks_msec()
 		chunk.commit_collision()
-		#var collision_time = Time.get_ticks_msec() - t
-		#print("V: %sms  C: %sms  VQ: %s  CQ: %s" % [visual_time, collision_time, chunk_visual_queue.size(), chunk_collision_queue.size()])
+		
+		if chunk.position == Vector3(0.0, 0.0, 0.0) and Settings.player_is_spawned == false:
+			EventBus.spawn_chunk_is_ready.emit()
 
 func _ready():
 	# Uncomment this to make the world gen random. It's not currently, which can be helpful in testing.
@@ -65,14 +65,11 @@ func _ready():
 	
 	player.add_block.connect(self._on_add_block)
 	player.remove_block.connect(self._on_remove_block)
-	#var x = Chunk.atlas
-	#var number_of_textures_in_atlas = Vector2((Chunk.atlas_size / Settings.texture_size), 1)
 	
 	var chunks_to_generate = []
 	chunks_to_generate = generate_terrain_infinite()
 	
 	multithreaded_terrain_generation(chunks_to_generate, loading_threads)
-	# This lists every voxel (and its color) in the spawn chunk.
 	
 	# Tell other scenes we're ready
 	EventBus.blocks_ready.emit(block_types)
@@ -134,28 +131,6 @@ func get_chunk_queue():
 		# This needs to be whatever function actually adds a chunk to the worldspace.
 		# add_chunk_to_screen(x, y)
 
-#func generate_chunks(pos):
-	#var _voxels = []
-	#
-	#for chunk in pos:
-		#if kill_thread == true:
-			#break
-		#var new_chunk = chunk_class.instantiate()
-		##print("New chunk: ", new_chunk)
-		#new_chunk.position = Vector3i((chunk.x * chunk_size), (chunk.z * chunk_height), (chunk.y * chunk_size))
-		##print("New chunk position: ", new_chunk.position)
-		#new_chunk.generate_data(chunk_size, chunk_height, random_generator, block_types)
-		##print("New chunk data: ", new_chunk.voxels)
-		#new_chunk.generate_mesh()
-		##print("Generated new chunk ", new_chunk)
-		## This names each chunk after its coordinates. It divides each chunk's name by the chunk size,
-		## so the second chunk to the left is "(-1, 0, 0)", instead of "(-32, 0, 0)".
-		#new_chunk.name = str((new_chunk.position as Vector3i)/Vector3i(chunk_size, chunk_size, chunk_size))
-		## This returns the location and color of every voxel in the chunk. We should save this so it's accessible somehow.
-		## print("New chunk: ", new_chunk.voxels)
-		#chunks[chunk] = new_chunk
-		#call_deferred("add_child", new_chunk)
-
 func generate_chunks(pos):
 	for chunk in pos:
 		if kill_thread == true:
@@ -193,7 +168,6 @@ func _on_add_block(_pos: Vector3i):
 	# Additionally, prevent adding chunks that would clip with the player. Or anything, really.
 
 func _on_remove_block(_pos: Vector3i):
-	print("Main thread: ", OS.get_thread_caller_id())
 	var chunk = player_focus.get_collider() as Chunk
 	var local_pos = player_focus.get_ray_hit().remove_position - Vector3i(chunk.global_position)
 	

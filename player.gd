@@ -108,11 +108,13 @@ func _unhandled_input(event: InputEvent) -> void:
 		scroll.emit("scroll_down")
 
 func spawn():
+	print("Spawn() called")
 	print("Spawn state: ", Settings.player_is_spawned)
 	if Settings.player_is_spawned == true:
 		print("Spawn state is now: ", Settings.player_is_spawned)
 		return
 	elif Settings.player_is_spawned == false:
+		print("Getting ready to spawn player...")
 		# This is written to spawn the player in initially. It can't do movable spawn points yet.
 		# This gets all of the block locations in the spawn_chunk.
 		var spawn_chunk = EventBus.chunk_manager.chunks.get(Vector3i(0, 0, 0), null)

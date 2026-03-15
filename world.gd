@@ -8,6 +8,7 @@ extends Node3D
 var terrain_data: Dictionary[Vector3, Color] = {}
 
 func _ready():
+	await get_tree()
 	# Get Mouse Mode from the Settings Singleton
 	Input.mouse_mode = Settings.mouse_mode
 	EventBus.spawn_chunk_is_ready.connect(self._spawn)

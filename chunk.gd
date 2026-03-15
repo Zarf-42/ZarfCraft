@@ -144,7 +144,7 @@ func generate_mesh():
 	var start_time = Time.get_ticks_msec()
 	
 	var atlas: Texture2D = self.material.albedo_texture
-	var atlas_size: int = atlas.get_size()[0]
+	var atlas_size: float = atlas.get_size()[0]
 	number_of_textures_in_atlas = Vector2((atlas_size / Settings.texture_size), 1)
 	
 	var t2 = Time.get_ticks_msec()
@@ -168,16 +168,16 @@ func generate_mesh():
 		if not voxels.has(Vector3i(pos.x, pos.y - 1, pos.z)):
 			add_face(Face.BOTTOM, pos, block_type)
 		
-	var t3 = Time.get_ticks_msec()
+#	var t3 = Time.get_ticks_msec()
 	if benchmarking == true:
 		#print("Face gen: ", t3-t2, "ms, voxel count: ", voxels.size())
 		#print("Voxels per ms: ", voxels.size()/(t3-t2))
 		#print("Total face time: ", face_time, "ms")
 		face_time = 0
 
-func has_neighbor(data: Dictionary[Vector3i, BlockType], face: Face, position: Vector3) -> bool:
+func has_neighbor(data: Dictionary[Vector3i, BlockType], face: Face, pos: Vector3) -> bool:
 	# This checks all adjacent positions for neighbors. If one exists, we skip generating that face.
-	return data.has(position + face_normals[face])
+	return data.has(pos + face_normals[face])
 
 func add_face(face: Face, vertice_position: Vector3, block: BlockType) -> void:
 	var start_time = Time.get_ticks_msec()
@@ -233,7 +233,7 @@ func commit_mesh():
 	else: return
 	
 func commit_visuals():
-	var start = Time.get_ticks_msec()
+#	var start = Time.get_ticks_msec()
 	# Commit Visuals seperately so we can do this relatively inexpensive operation more often than
 	# the expensive operating of committing Collision.
 	var new_mesh = ArrayMesh.new()
@@ -266,19 +266,19 @@ func threaded_rebuild():
 			pass
 			#print("Running on thread: ", OS.get_thread_caller_id())
 		regen_mutex.lock()
-		var start_time = Time.get_ticks_msec()
+		#var start_time = Time.get_ticks_msec()
 		vertices.clear()
-		var vertice_time = Time.get_ticks_msec() - start_time
+		#var vertice_time = Time.get_ticks_msec() - start_time
 		normals.clear()
-		var normals_time = Time.get_ticks_msec() - start_time - vertice_time
+		#var normals_time = Time.get_ticks_msec() - start_time - vertice_time
 		uvs.clear()
-		var uvs_time = Time.get_ticks_msec() - start_time - normals_time
+		#var uvs_time = Time.get_ticks_msec() - start_time - normals_time
 		generate_mesh() # Generate_mesh has its own timer and print funciton.
 		regen_mutex.unlock()
 		commit_visuals.call_deferred() # Same here.
 		schedule_collision_rebuild.call_deferred()
 		#commit_collision.call_deferred()
-		var commit_collision_time = Time.get_ticks_msec() - start_time
+		#var commit_collision_time = Time.get_ticks_msec() - start_time
 		finish_rebuild.call_deferred()
 		if benchmarking == true:
 			pass
@@ -288,7 +288,7 @@ func threaded_rebuild():
 			)
 
 func schedule_collision_rebuild():
-	var start = Time.get_ticks_msec()
+	#var start = Time.get_ticks_msec()
 	if commit_collision_timer != null:
 		# Reset the clock if it's already running
 		commit_collision_timer = null

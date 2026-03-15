@@ -15,7 +15,6 @@ signal blocks_ready(block_types: Array) # Used to tell other scenes when we've l
 
 func _ready():
 	process_mode = Node.PROCESS_MODE_ALWAYS
-
 func _on_paused_button_pressed(_PauseButton):
 	PauseManager.unpause()
 

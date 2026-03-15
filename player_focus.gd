@@ -22,6 +22,6 @@ func get_ray_hit():
 	var point = get_collision_point()
 	var normal = Vector3i(get_collision_normal())
 	var remove_position = Vector3i((point - normal * 0.5).floor())
-	var add_position = remove_position + normal
+	#var add_position = remove_position + normal
 
 	return RayHit.new(remove_position, remove_position + normal)

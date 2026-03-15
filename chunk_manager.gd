@@ -24,8 +24,11 @@ var loading_threads: Array = Settings.threads
 # We've sped up chunk generation so much that the act of placing all available chunks in the scene
 # is slowing things down to the point where it feels like the game is frozen when we first start.
 # We need to make a commit queue that will divide that work into different frames, as it all needs
-# to happen on one thread.
-var chunk_commit_queue: Array = []
+# to happen on one thread. Additionally, I've split this between Visuals and Collision commits, because
+# collision is much more expensive. Users need to see generated chunks first, far before they need
+# to be able to collide with them.
+var chunk_visual_queue: Array = []
+var chunk_collision_queue: Array = []
 
 var chunk_class = preload("res://chunk.tscn")
 var chunks: Dictionary[Vector3i, Chunk] = {}
@@ -34,34 +37,21 @@ var chunks: Dictionary[Vector3i, Chunk] = {}
 var kill: bool = false
 
 func _process(delta: float):
-	#Added to address the freeze on spawn when putting tons of chunks to the screen at once
-	if chunk_commit_queue.is_empty():
-		return
-	#print("Queue size: ", chunk_commit_queue.size())
-	# This is to see how fast the user's computer is, and determine the length of the queue based
-	# on that.
-	var frame_time_scale = 0.1
-	var max_frame_time = 0.01
-	# Frame Time Scale is how quickly this function scales up to taking more of each frame for
-	# committing meshes. Max Frame Time is a cap on how much time can be taken.
-	var budget_ms = min(delta * 1000 * frame_time_scale, max_frame_time)
-	var frame_start = Time.get_ticks_msec()
-	var commits_this_frame = 0
-	while not chunk_commit_queue.is_empty():
-		if Time.get_ticks_msec() - frame_start >= budget_ms:
-			break
-		# pop this chunk into the front of the queue
-		var chunk = chunk_commit_queue.pop_front()
-		var t = Time.get_ticks_msec()
+	var visual_time = 0
+	while not chunk_visual_queue.is_empty():
+		var chunk = chunk_visual_queue.pop_front() # pop this chunk into the front of the queue
+		#var t = Time.get_ticks_msec()
 		chunk.commit_visuals()
-		var visuals_time = Time.get_ticks_msec() - t
-		t = Time.get_ticks_msec()
+		#visual_time = Time.get_ticks_msec() - t
+		chunk_collision_queue.append(chunk) # Seperately queued collision
+	
+	# Commit one collision chunk per frame
+	if not chunk_collision_queue.is_empty():
+		var chunk = chunk_collision_queue.pop_front() # pop this chunk into the front of the queue
+		#var t = Time.get_ticks_msec()
 		chunk.commit_collision()
-		var collision_time = Time.get_ticks_msec() - t
-		commits_this_frame += 1
-		if commits_this_frame == 1:
-			print("visuals: ", visuals_time, "ms  collision: ", collision_time, "ms")
-	print("commits this frame: ", commits_this_frame, "  queue: ", chunk_commit_queue.size())
+		#var collision_time = Time.get_ticks_msec() - t
+		#print("V: %sms  C: %sms  VQ: %s  CQ: %s" % [visual_time, collision_time, chunk_visual_queue.size(), chunk_collision_queue.size()])
 
 func _ready():
 	# Uncomment this to make the world gen random. It's not currently, which can be helpful in testing.
@@ -180,7 +170,7 @@ func generate_chunks(pos):
 		call_deferred("add_to_commit_queue", new_chunk)
 
 func add_to_commit_queue(chunk: Chunk):
-	chunk_commit_queue.append(chunk)
+	chunk_visual_queue.append(chunk)
 
 func multithreaded_terrain_generation(chunks_by_thread, _number_of_threads):
 	var spawn_point = [Vector3i(0, 0, 0)]

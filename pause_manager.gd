@@ -8,7 +8,7 @@ const PAUSE_MENU_SCENE = preload("res://ui/pause_menu.tscn")
 var is_paused: bool = false
 var pause_menu_instance: Control = null
 
-func _ready():
+func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	 
 func _process(_delta: float) -> void:
@@ -23,14 +23,14 @@ func _process(_delta: float) -> void:
 		elif get_tree().paused == true:
 			unpause()
 
-func pause():
+func pause() -> void:
 	# Pause the Scene Tree, show the mouse cursor, show the pause menu.
 	get_tree().paused = true
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	pause_menu_instance = PAUSE_MENU_SCENE.instantiate()
 	self.add_child(pause_menu_instance)
 
-func unpause():
+func unpause() -> void:
 	# Unpause the scene tree, hide the mouse cursor, check if there's a pause menu, and if there is,
 	# get rid of it.
 	get_tree().paused = false

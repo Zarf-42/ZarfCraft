@@ -11,7 +11,7 @@ config_version=5
 [application]
 
 config/name="Zarfcraft"
-run/main_scene="res://world.tscn"
+run/main_scene="uid://b5pckj2iwo2co"
 config/features=PackedStringArray("4.6", "Forward Plus")
 config/icon="res://icon.svg"
 
@@ -20,6 +20,8 @@ config/icon="res://icon.svg"
 EventBus="*uid://bplsoqx7kyrd7"
 Settings="*uid://chydrt4ei17s"
 PauseManager="*uid://04ulj10p1rq"
+SaveManager="*uid://b7p7u3xfdfk8s"
+UiManager="*uid://b5id7ibap37pt"
 
 [editor]
 

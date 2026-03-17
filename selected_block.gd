@@ -20,11 +20,11 @@ func _scroll(scroll_direction: String):
 	
 	if scroll_direction == "scroll_up":
 		block_index = (block_index + 1) % block_types.size()
-		print(block_index)
+		#print(block_index)
 	else:
 		block_index = (block_index - 1) % block_types.size()
 		if block_index < 0:
 			block_index = block_types.size() - 1
 			
 	player.selected_block_type = block_types[block_index]
-	print("Selected block type: ", player.selected_block_type.block_name)
+	#print("Selected block type: ", player.selected_block_type.block_name)

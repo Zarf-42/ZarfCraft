@@ -4,7 +4,13 @@ extends Node
 # player spawns on is complete, we will emit a signal defined here saying that it's safe to spawn.
 # This may also be where the spawn function lives, I dunno yet.
 
-@onready var chunk_manager = get_parent().get_node("World").get_node("ChunkManager")
+# These were present when World was the main scene. Now, Main Menu is the main scene, so these lines
+# error out. Instead, we will assign them in their respective scripts, which load when the World loads.
+#@onready var chunk_manager = get_parent().get_node("World").get_node("ChunkManager")
+#@onready var player: CharacterBody3D = get_parent().get_node("World").get_node("Player")
+
+var chunk_manager: ChunkManager
+var player: CharacterBody3D
 
 signal spawn_chunk_is_ready
 signal chunk_spawned
@@ -15,13 +21,3 @@ signal blocks_ready(block_types: Array) # Used to tell other scenes when we've l
 
 func _ready():
 	process_mode = Node.PROCESS_MODE_ALWAYS
-func _on_paused_button_pressed(_PauseButton):
-	PauseManager.unpause()
-
-func _on_quit_button_pressed(_QuitButton):
-	# Here, we need to shut down all threads and close the program gracefully. This should either
-	# eventually offer a Save option, or live alongside a Save option.
-	# For each thread, we call a function to stop itself within the chunk_manager file.
-	for threads in Settings.threads:
-		chunk_manager.kill_thread = true
-		get_tree().quit()

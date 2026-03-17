@@ -6,7 +6,6 @@ extends StaticBody3D
 
 # Following https://www.youtube.com/watch?v=Pfqfr3zFyKI
 
-@export var benchmarking: bool = true
 
 @export var material: Material
 
@@ -22,8 +21,7 @@ var normals = PackedVector3Array()
 var uvs = PackedVector2Array()
 
 # For Benchmarking
-#var total_chunks = 0
-#var chunk_gen_time = 0
+@export var benchmarking: bool = false
 var face_time: int = 0
 
 # These are implemented to make regenerating chunks multithreaded.
@@ -87,12 +85,12 @@ const face_normals: Dictionary[Face, Vector3] = {
 	Face.TOP: Vector3(0, 1, 0)
 }
 
-func _process(_delta: float):
+func _process(_delta: float) -> void:
 	if needs_rebuild and not is_rebuilding:
 		needs_rebuild = false
 		threaded_rebuild()
 
-func _init():
+func _init() -> void:
 	# Precompute UVs. This helps speed up add_face, thereby speeding up chunk generation.
 	for face in Face.values():
 		face_vertex_uvs[face] = []
@@ -119,7 +117,7 @@ func _ready() -> void:
 
 # This function determines the position of each block in a given chunk. I believe this is where we
 # need to record the location of each block, perhaps in a dictionary?
-func generate_data(chunk_size: int, max_height: int, noise: Noise, block_types: Array[BlockType]):
+func generate_data(chunk_size: int, max_height: int, noise: Noise, block_types: Array[BlockType])  -> void:
 	# Define block types you'll need to refer to by name. Set them to 0 just in case something gets
 	# messed up, then look for them by value.
 	var default_block: BlockType = block_types[0]
@@ -190,7 +188,7 @@ func generate_data(chunk_size: int, max_height: int, noise: Noise, block_types: 
 				
 				voxels[Vector3i(x, y, z)] = default_block
  
-func generate_mesh():
+func generate_mesh() -> void:
 	if voxels.is_empty(): return
 	var start_time = Time.get_ticks_msec()
 	
@@ -252,19 +250,18 @@ func add_face(face: Face, vertice_position: Vector3, block: BlockType) -> void:
 
 	face_time += Time.get_ticks_msec() - start_time
 
-func commit_mesh():
+func commit_mesh() -> void:
 	# This used to be the main function that generated chunks. Now it generates the initial chunks
 	# and fires a signal when the spawn point is ready.
 	commit_visuals()
 	commit_collision()
 	
 	if mesh_instance.global_position == Vector3(0.0, 0.0, 0.0) && Settings.player_is_spawned == false:
-		#print(Settings.player_is_spawned)
 		EventBus.spawn_chunk_is_ready.emit()
 	else: return
 	
-func commit_visuals():
-#	var start = Time.get_ticks_msec()
+func commit_visuals() -> void:
+	var start = Time.get_ticks_msec()
 	# Commit Visuals seperately so we can do this relatively inexpensive operation more often than
 	# the expensive operating of committing Collision.
 	var new_mesh = ArrayMesh.new()
@@ -278,26 +275,22 @@ func commit_visuals():
 	new_mesh.surface_set_material(0, material)
 	mesh_instance.mesh = new_mesh
 	if benchmarking == true:
-		pass
-		#print("Commit Visuals: %s ms" % (Time.get_ticks_msec() - start))
+		print("Commit Visuals: %s ms" % (Time.get_ticks_msec() - start))
 
-func commit_collision():
+func commit_collision() -> void:
 	collision_shape.shape = mesh_instance.mesh.create_trimesh_shape()
 
 # This is to address lag when adding or removing blocks.
-func request_rebuild():
+func request_rebuild() -> void:
 	needs_rebuild = true
 
 # Rebuilds a chunk's mesh in a multithreaded fashion.
-func threaded_rebuild():
+func threaded_rebuild() -> void:
 	if regen_thread.is_started(): # Old threads that this routine starts might hang around. This
 		# cleans them up.
 		regen_thread.wait_to_finish()
 	regen_thread = Thread.new()
 	regen_thread.start(func():
-		if benchmarking == true:
-			pass
-			#print("Running on thread: ", OS.get_thread_caller_id())
 		regen_mutex.lock() # Lock this mutex, then clear vertices, normals, and uvs
 		vertices.clear()
 		normals.clear()
@@ -313,14 +306,9 @@ func threaded_rebuild():
 		else:
 			schedule_collision_rebuild.call_deferred() # Scheduled
 		finish_rebuild.call_deferred()
-		if benchmarking == true:
-			pass
-			#print(
-			#"Cleared vertices: %s ms\nNormals: %s ms\nUVs: %s ms" % 
-			#[vertice_time, normals_time, uvs_time])
-			)
-
-func schedule_collision_rebuild():
+		)
+		
+func schedule_collision_rebuild() -> void:
 	#var start = Time.get_ticks_msec()
 	if commit_collision_timer != null:
 		# Reset the clock if it's already running
@@ -331,14 +319,11 @@ func schedule_collision_rebuild():
 		commit_collision()
 		commit_collision_timer = null
 	)
-	if benchmarking == true:
-		pass
-		#print("Commit Collision: %s ms" % (Time.get_ticks_msec() - start))
 
-func finish_rebuild():
+func finish_rebuild() -> void:
 	regen_thread.wait_to_finish()
 	is_rebuilding = false
 
-func _exit_tree():
+func _exit_tree() -> void:
 	if regen_thread.is_started():
 		regen_thread.wait_to_finish()

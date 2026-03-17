@@ -1,0 +1,70 @@
+[gd_scene format=3 uid="uid://b5pckj2iwo2co"]
+
+[ext_resource type="Theme" uid="uid://t84ob2sa5dpk" path="res://ui/zarfcraft_ui_theme.tres" id="1_0dkrt"]
+[ext_resource type="Script" uid="uid://cnqqmhin3seyd" path="res://ui/main_menu.gd" id="1_t7e0r"]
+
+[node name="MainMenu" type="Control" unique_id=1273761269]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme = ExtResource("1_0dkrt")
+script = ExtResource("1_t7e0r")
+
+[node name="ColorRect" type="ColorRect" parent="." unique_id=442056171]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0, 0, 0, 0.38039216)
+
+[node name="VBoxContainer" type="VBoxContainer" parent="." unique_id=1859885782]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="MainLabelCenter" type="CenterContainer" parent="VBoxContainer" unique_id=653441341]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="MainLabel" type="Label" parent="VBoxContainer/MainLabelCenter" unique_id=1340182229]
+layout_mode = 2
+size_flags_vertical = 1
+theme_type_variation = &"HeaderLarge"
+text = "ZarfCraft"
+
+[node name="ButtonsCenter" type="CenterContainer" parent="VBoxContainer" unique_id=1837396275]
+layout_mode = 2
+size_flags_vertical = 3
+size_flags_stretch_ratio = 2.0
+
+[node name="VBoxContainer" type="VBoxContainer" parent="VBoxContainer/ButtonsCenter" unique_id=408477952]
+layout_mode = 2
+
+[node name="New" type="Button" parent="VBoxContainer/ButtonsCenter/VBoxContainer" unique_id=352909302]
+custom_minimum_size = Vector2(200, 50)
+layout_mode = 2
+text = "New Game"
+
+[node name="Load" type="Button" parent="VBoxContainer/ButtonsCenter/VBoxContainer" unique_id=1705375011]
+custom_minimum_size = Vector2(0, 50)
+layout_mode = 2
+text = "Load"
+
+[node name="Options" type="Button" parent="VBoxContainer/ButtonsCenter/VBoxContainer" unique_id=207896287]
+custom_minimum_size = Vector2(0, 50)
+layout_mode = 2
+text = "Options"
+
+[node name="Exit" type="Button" parent="VBoxContainer/ButtonsCenter/VBoxContainer" unique_id=587164849]
+custom_minimum_size = Vector2(0, 50)
+layout_mode = 2
+text = "Exit
+"

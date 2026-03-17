@@ -30,15 +30,16 @@ const JUMP_VELOCITY = 9.8
 const GRAVITY: float = 9.8
 var paused = Settings.pause_state
 
-func _ready():
+func _ready() -> void:
 	EventBus.blocks_ready.connect(_on_blocks_ready)
 
 	player.global_position = Vector3i(0, 100, 0)
 	process_mode = Node.PROCESS_MODE_PAUSABLE
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	#player_focus.target_position = Settings.player_reach
+	EventBus.player = self
 
-func _on_blocks_ready(block_types: Array):
+func _on_blocks_ready(block_types: Array) -> void:
 	# Initialize the player's current Block Choice to be stone
 	if block_types.size() > 0:
 		selected_block_type_index = 1
@@ -107,14 +108,10 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("scroll_down"):
 		scroll.emit("scroll_down")
 
-func spawn():
-	print("Spawn() called")
-	print("Spawn state: ", Settings.player_is_spawned)
+func spawn() -> void:
 	if Settings.player_is_spawned == true:
-		print("Spawn state is now: ", Settings.player_is_spawned)
 		return
 	elif Settings.player_is_spawned == false:
-		print("Getting ready to spawn player...")
 		# This is written to spawn the player in initially. It can't do movable spawn points yet.
 		# This gets all of the block locations in the spawn_chunk.
 		var spawn_chunk = EventBus.chunk_manager.chunks.get(Vector3i(0, 0, 0), null)

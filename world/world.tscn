@@ -1,9 +1,9 @@
 [gd_scene format=3 uid="uid://bbdqm5ffhf30g"]
 
-[ext_resource type="Script" uid="uid://bwreor0aqspb4" path="res://world.gd" id="1_f3sb7"]
-[ext_resource type="PackedScene" uid="uid://d34uvd7dyk6ad" path="res://player.tscn" id="2_fj7yv"]
-[ext_resource type="PackedScene" uid="uid://4yfa4ciqrdqm" path="res://chunk_manager.tscn" id="3_tlwt5"]
-[ext_resource type="Environment" uid="uid://byb8ov2ru6hj7" path="res://sky_test_01.tres" id="4_aqk2v"]
+[ext_resource type="Script" uid="uid://bwreor0aqspb4" path="res://world/world.gd" id="1_f3sb7"]
+[ext_resource type="PackedScene" uid="uid://d34uvd7dyk6ad" path="res://player/player.tscn" id="2_fj7yv"]
+[ext_resource type="PackedScene" uid="uid://4yfa4ciqrdqm" path="res://world/chunk_manager.tscn" id="3_tlwt5"]
+[ext_resource type="Environment" uid="uid://byb8ov2ru6hj7" path="res://res/sky_test_01.tres" id="4_aqk2v"]
 [ext_resource type="Script" uid="uid://bukjfu8um0cxb" path="res://blocks/block_data.gd" id="4_gbfbk"]
 [ext_resource type="Resource" uid="uid://scvqdjpv5bj1" path="res://blocks/stone.tres" id="5_ioo17"]
 [ext_resource type="Resource" uid="uid://dc8bdi0gnxrqj" path="res://blocks/grass.tres" id="6_wse8f"]

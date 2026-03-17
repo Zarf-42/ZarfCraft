@@ -45,7 +45,7 @@ func _on_world_selected(world_name: String) -> void:
 	SaveManager.pending_load = world_name
 	SaveManager.is_loading = true
 	if came_from == "main_menu":
-		get_tree().change_scene_to_file("res://world.tscn")
+		get_tree().change_scene_to_file("res://world/world.tscn")
 	elif came_from == "pause_menu":
 		# A little more complicated; we need to unload our existing world first.
 		get_tree().paused = false
@@ -56,5 +56,5 @@ func _on_world_selected(world_name: String) -> void:
 		EventBus.chunk_manager = null
 		EventBus.player = null
 		queue_free()
-		get_tree().change_scene_to_file("res://world.tscn")
+		get_tree().change_scene_to_file("res://world/world.tscn")
 	print("Selected ", world_name)

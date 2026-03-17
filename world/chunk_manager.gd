@@ -32,7 +32,7 @@ var loading_threads: Array = Settings.threads
 var chunk_visual_queue: Array = []
 var chunk_collision_queue: Array = []
 
-var chunk_class = preload("res://chunk.tscn")
+var chunk_class = preload("res://world/chunk.tscn")
 var chunks: Dictionary[Vector3i, Chunk] = {}
 
 # This is a boolean that we use to determine if a thread is stopped or not. We use it in thread_is_kill.

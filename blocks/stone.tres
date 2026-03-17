@@ -5,5 +5,4 @@
 [resource]
 script = ExtResource("1_ev6vt")
 block_name = "Stone"
-uv_offset = Vector2i(0, 2)
 metadata/_custom_type_script = "uid://bukjfu8um0cxb"

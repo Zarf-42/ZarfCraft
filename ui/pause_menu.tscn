@@ -1,11 +1,7 @@
 [gd_scene format=3 uid="uid://djqrs8cjsvtu6"]
 
 [ext_resource type="Script" uid="uid://blb6llv6s65xl" path="res://ui/pause_menu.gd" id="1_50142"]
-
-[sub_resource type="LabelSettings" id="LabelSettings_euhrg"]
-font_size = 24
-outline_size = 12
-outline_color = Color(0, 0, 0, 1)
+[ext_resource type="Theme" uid="uid://t84ob2sa5dpk" path="res://ui/zarfcraft_ui_theme.tres" id="1_ejwgg"]
 
 [node name="PauseMenu" type="Control" unique_id=1268396828 groups=["pause_menu"]]
 process_mode = 3
@@ -16,6 +12,7 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
+theme = ExtResource("1_ejwgg")
 script = ExtResource("1_50142")
 
 [node name="ColorRect" type="ColorRect" parent="." unique_id=434651622]
@@ -27,7 +24,7 @@ grow_horizontal = 2
 grow_vertical = 2
 color = Color(0, 0, 0, 0.38039216)
 
-[node name="CenterContainer" type="CenterContainer" parent="." unique_id=2075590638]
+[node name="VBoxContainer" type="VBoxContainer" parent="." unique_id=498538708]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -35,47 +32,42 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 
-[node name="Control" type="Control" parent="CenterContainer" unique_id=2095436676]
+[node name="PauseLabelCenter" type="CenterContainer" parent="VBoxContainer" unique_id=68629338]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="PauseLabel" type="Label" parent="VBoxContainer/PauseLabelCenter" unique_id=690789667]
+layout_mode = 2
+size_flags_vertical = 1
+theme_type_variation = &"HeaderLarge"
+text = "-- PAUSED --"
+
+[node name="ButtonsCenter" type="CenterContainer" parent="VBoxContainer" unique_id=1515835417]
+layout_mode = 2
+size_flags_vertical = 3
+size_flags_stretch_ratio = 2.0
+
+[node name="VBoxContainer" type="VBoxContainer" parent="VBoxContainer/ButtonsCenter" unique_id=1066390779]
 layout_mode = 2
 
-[node name="Label" type="Label" parent="CenterContainer/Control" unique_id=100048799]
-layout_mode = 0
-offset_left = -388.0
-offset_top = -17.0
-offset_right = 388.0
-offset_bottom = 17.0
-size_flags_horizontal = 4
-text = "-- PAUSED --"
-label_settings = SubResource("LabelSettings_euhrg")
-horizontal_alignment = 1
-vertical_alignment = 1
+[node name="PauseButton" type="Button" parent="VBoxContainer/ButtonsCenter/VBoxContainer" unique_id=1261879173]
+custom_minimum_size = Vector2(200, 50)
+layout_mode = 2
+text = "Resume"
 
-[node name="PauseButton" type="Button" parent="CenterContainer/Control" unique_id=1261879173]
-layout_mode = 1
-anchors_preset = 8
-anchor_left = 0.5
-anchor_top = 0.5
-anchor_right = 0.5
-anchor_bottom = 0.5
-offset_left = -99.5
-offset_top = 43.0
-offset_right = 99.5
-offset_bottom = 111.0
-grow_horizontal = 2
-grow_vertical = 2
-text = "Unpause"
+[node name="SaveButton" type="Button" parent="VBoxContainer/ButtonsCenter/VBoxContainer" unique_id=1466488077]
+custom_minimum_size = Vector2(200, 50)
+layout_mode = 2
+text = "Save
+"
 
-[node name="QuitButton" type="Button" parent="CenterContainer/Control" unique_id=1513985309]
-layout_mode = 1
-anchors_preset = 8
-anchor_left = 0.5
-anchor_top = 0.5
-anchor_right = 0.5
-anchor_bottom = 0.5
-offset_left = -99.5
-offset_top = 120.0
-offset_right = 99.5
-offset_bottom = 188.0
-grow_horizontal = 2
-grow_vertical = 2
+[node name="LoadButton" type="Button" parent="VBoxContainer/ButtonsCenter/VBoxContainer" unique_id=980619135]
+custom_minimum_size = Vector2(200, 50)
+layout_mode = 2
+text = "Load
+"
+
+[node name="QuitButton" type="Button" parent="VBoxContainer/ButtonsCenter/VBoxContainer" unique_id=1513985309]
+custom_minimum_size = Vector2(200, 50)
+layout_mode = 2
 text = "Quit"

@@ -1,0 +1,10 @@
+[gd_resource type="Theme" format=3 uid="uid://t84ob2sa5dpk"]
+
+[ext_resource type="FontFile" uid="uid://bsntkxnxtnxt3" path="res://ui/Fonts/Kenney Pixel.ttf" id="1_nd5ua"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_lv518"]
+bg_color = Color(0.13, 0.13, 0.13, 1)
+
+[resource]
+default_font = ExtResource("1_nd5ua")
+ScrollContainer/styles/panel = SubResource("StyleBoxFlat_lv518")

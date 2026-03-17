@@ -9,6 +9,7 @@ extends Label
 @onready var chunk_manager: ChunkManager = $"../../../../../../../ChunkManager"
 @onready var focus_thingy: MeshInstance3D = $"../../../../../../FocusThingy"
 @onready var chunk: Label = $"../Chunk"
+@onready var type: Label = $"../Type"
 
 func _ready():
 	# Ignore the player's collision mesh! Or else the raycaster won't work. We don't have to ignore
@@ -26,12 +27,13 @@ func _process(_delta: float):
 		looking_at.text = "Target: %s" % [player_focus.get_collision_point()]
 		get_target(player_focus.get_collision_point())
 		focus_thingy.visible = true
-		chunk.text = player_focus.get_collider().name
+		chunk.text = "Chunk: " + player_focus.get_collider().name
 
 func get_target(_collision_point):
 	# Get the Chunk the player is looking at.
-	if player_focus.get_collider() != null:# && collision_point:
-		var currently_focused_chunk = player_focus.get_collider()
+	var current_chunk = player_focus.get_collider() as Chunk
+	if current_chunk != null:# && collision_point:
+		var currently_focused_chunk = current_chunk
 		var focus_location = Vector3(
 			# We have to reverse z and y here because... reasons?
 			int(currently_focused_chunk.global_position.x / Settings.chunk_size),
@@ -42,7 +44,7 @@ func get_target(_collision_point):
 	
 	# 2/22/26: Shouldn't this be handled by the PlayerFocus object, not the label?
 	# I had this && here for a reason but I don't know what. Commenting out the second part seems to work.
-	if player_focus.get_collider() != null:# && collision_point:
+	#if player_focus.get_collider() != null:# && collision_point:
 		var block_normal = Vector3i(player_focus.get_collision_normal())
 		# We set cursor as a Vector3i to eliminate some rounding errors. Not sure it helps.
 		var cursor = Vector3i(player_focus.get_collision_point())
@@ -62,11 +64,19 @@ func get_target(_collision_point):
 				focus_thingy.position[axes] = floor(focus_thingy.position[axes]) + 0.5
 			else:
 				focus_thingy.position[axes] -= 0.5 * block_normal[axes]
-
-		cursor_location.text = "Cursor: %s" % [floor(focus_thingy.global_position) as Vector3i]
 		
-		# This gets the voxel coords that the player is looking at.
-		#chunk_manager.get_chunk(cursor)
+		var current_block: Vector3i = floor(focus_thingy.position)
+		cursor_location.text = "Cursor: %s" % [current_block]
+		
+		var local_voxel_pos = current_block - Vector3i(current_chunk.global_position)
+		if current_chunk.regen_mutex.try_lock():
+			if current_chunk.voxels.has(local_voxel_pos):
+				var block_type = current_chunk.voxels[local_voxel_pos].block_name
+				type.text = "Type: " + block_type
+			else:
+				type.text = "Type: Air"
+			current_chunk.regen_mutex.unlock()
+
 		return pos
 	else:
 		return

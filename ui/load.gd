@@ -44,6 +44,7 @@ func add_world_entry(world_name: String) -> void:
 func _on_world_selected(world_name: String) -> void:
 	SaveManager.pending_load = world_name
 	SaveManager.is_loading = true
+	Settings.player_is_spawned = false
 	if came_from == "main_menu":
 		get_tree().change_scene_to_file("res://world/world.tscn")
 	elif came_from == "pause_menu":
@@ -56,5 +57,5 @@ func _on_world_selected(world_name: String) -> void:
 		EventBus.chunk_manager = null
 		EventBus.player = null
 		queue_free()
+		Settings.player_is_spawned = false
 		get_tree().change_scene_to_file("res://world/world.tscn")
-	print("Selected ", world_name)

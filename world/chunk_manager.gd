@@ -56,10 +56,15 @@ func _process(_delta: float) -> void:
 			EventBus.spawn_chunk_is_ready.emit()
 
 func _ready() -> void:
-	# Uncomment this to make the world gen random. It's not currently, which can be helpful in testing.
-	# Leaving this commented means the map will be the same every time you run the game.
-	world_seed = randi()
-	random_generator.seed = world_seed
+	if SaveManager.is_loading:
+		var world_data = SaveManager.load_world()
+		if not world_data.is_empty():
+			random_generator.seed = int(world_data["seed"])
+	else:
+		# Uncomment this to make the world gen random. It's not currently, which can be helpful in testing.
+		# Leaving this commented means the map will be the same every time you run the game.
+		world_seed = randi()
+		random_generator.seed = world_seed
 	
 	# This makes it so the Signal emission at the end of generate_chunks() doesn't fire until the
 	# World script is loaded. If we don't have these lines, that signal emits before the connection
@@ -108,16 +113,18 @@ func get_chunk_queue() -> Array:
 		# Generate all chunks within this ring (distance-1 < r <= distance)
 		for x in range(-distance, distance + 1):
 			for y in range(-distance, distance + 1):
+				if maxi(absi(x), absi(y)) == distance:
+					chunk_queue.append(Vector3i(x, y, 0))
 				# Does this check for a chunk at 0,0? Is this just trying to avoid re-generating the spawn chunk?
 				# Commenting it out appears to do nothing bad. For now.
 				#if x == 0 and y == 0:
 					#continue
 			
 				# Check if this chunk is in the current ring
-				var current_ring = Vector2i(x, y).length()
-				
-				if current_ring > (distance - 1) and current_ring <= distance:
-					chunk_queue.append(Vector3i(x, y, 0)) # Underground Layer
+				#var current_ring = Vector2i(x, y).length()
+				#
+				#if current_ring > (distance - 1) and current_ring <= distance:
+					#chunk_queue.append(Vector3i(x, y, 0)) # Underground Layer
 	return(chunk_queue)
 
 # First, this checks the chunk to see if it needs to be skipped. If not, it goes to add_chunk_to_screen().
@@ -140,15 +147,22 @@ func generate_chunks(pos) -> void:
 			break
 		var new_chunk = chunk_class.instantiate()
 		new_chunk.position = Vector3i((chunk.x * chunk_size), (chunk.z * chunk_height), (chunk.y * chunk_size))
+		new_chunk.chunks_key = chunk
 		new_chunk.generate_data(chunk_size, chunk_height, random_generator, block_types)
+		if SaveManager.is_loading:
+			SaveManager.apply_chunk_diffs(new_chunk, block_types)
 		new_chunk.generate_mesh()
 		new_chunk.was_generated_by_thread = true
+		new_chunk.name = str((new_chunk.position as Vector3i) / Vector3i(chunk_size, chunk_height, chunk_size))
 		chunks[chunk] = new_chunk
 		call_deferred("add_child", new_chunk)
 		call_deferred("add_to_commit_queue", new_chunk)
 
 func add_to_commit_queue(chunk: Chunk) -> void:
 	chunk_visual_queue.append(chunk)
+	# When loading, apply and saved diffs to this chunk immediately.
+	if SaveManager.is_loading:
+		SaveManager.apply_chunk_diffs(chunk, block_types)
 
 func multithreaded_terrain_generation(chunks_by_thread, _number_of_threads) -> void:
 	var spawn_point = [Vector3i(0, 0, 0)]
@@ -164,6 +178,7 @@ func _on_add_block(_pos: Vector3i) -> void:
 	var selected_block = player.selected_block_type
 	chunk.regen_mutex.lock()
 	chunk.voxels[append_position] = selected_block
+	chunk.dirty_voxels[append_position] = selected_block
 	chunk.regen_mutex.unlock()
 	chunk.player_initiated_rebuild = true
 	chunk.request_rebuild()
@@ -178,6 +193,9 @@ func _on_remove_block(_pos: Vector3i) -> void:
 	if chunk.voxels.has(local_pos):
 		chunk.regen_mutex.lock()
 		chunk.voxels.erase(local_pos)
+		chunk.dirty_voxels[local_pos] = null
+		print("Dirty voxel recorded: ", local_pos, " value: ", chunk.dirty_voxels[local_pos])
+		print("Recorded removal at ", local_pos, " dirty_voxels size: ", chunk.dirty_voxels.size())
 		chunk.regen_mutex.unlock()
 		chunk.player_initiated_rebuild = true
 		chunk.threaded_rebuild()

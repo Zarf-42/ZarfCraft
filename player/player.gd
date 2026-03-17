@@ -10,7 +10,7 @@ var chunk_manager: ChunkManager
 # Radians per Pixel; needs VERY small values
 @export var mouse_sensitivity: float = Settings.mouse_sensitivity / 100
 @onready var head: Node3D = $Head
-@onready var player_eyes: Camera3D = $Head/PlayerEyes
+@onready var eyes: Camera3D = $Head/PlayerEyes
 @onready var spawn_altitude_cast: RayCast3D = $SpawnAltitudeCast
 @onready var player: CharacterBody3D = $"."
 @onready var chunk_size: int = Settings.chunk_size
@@ -76,7 +76,7 @@ func _physics_process(delta: float) -> void:
 	var input_dir := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
 	var direction
 	if flying:
-		direction = (player_eyes.global_transform.basis * Vector3(input_dir.x, 0, input_dir.y)).normalized()
+		direction = (eyes.global_transform.basis * Vector3(input_dir.x, 0, input_dir.y)).normalized()
 		velocity = direction * SPEED * 2 * running
 	else:
 		direction = (head.global_transform.basis * Vector3(input_dir.x, 0, input_dir.y)).normalized()
@@ -90,8 +90,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		# Dunno what this does, part of the tutorial
 		var relative = event.relative * mouse_sensitivity
 		head.rotate_y(-relative.x)
-		player_eyes.rotate_x(-relative.y)
-		player_eyes.rotation.x = clamp(player_eyes.rotation.x, deg_to_rad(-80), deg_to_rad(80))
+		eyes.rotate_x(-relative.y)
+		eyes.rotation.x = clamp(eyes.rotation.x, deg_to_rad(-80), deg_to_rad(80))
 	
 	# Handle placing and removing blocks
 	if event.is_action_pressed("add_block"):
@@ -119,18 +119,37 @@ func spawn() -> void:
 			var random_location_x = randi_range(0, chunk_size)
 			var random_location_z = randi_range(0, chunk_size)
 			# From 0 to whatever chunk_height is...
-			for y in Settings.chunk_height:
+			for y in range(Settings.chunk_height - 1, -1, -1):
+			#for y in Settings.chunk_height:
 				# If there's a block there, mark it down
-				var altitude = y + 1.5
+				# var altitude = y + 1.5
 				# Adjust the spawn altitude for every layer that a block exists.
 				if spawn_chunk.voxels.has(Vector3i(random_location_x, y, random_location_z)):
-					altitude = y + 1.5
-				else:
-					# As soon as we run out of blocks, break out of this If statement
+					player.global_position = Vector3(random_location_x, y + 1.5, random_location_z)
+					Settings.player_is_spawned = true
+					#altitude = y + 1.5
 					return
 				# We have the max altitude, so spawn the player there. This will spawn players under 
 				# overhangs, including ones that are too short. Need to write something that checks if
 				# there's a gap large enough for the player.
-				player.global_position = Vector3(random_location_x, altitude, random_location_z)
-				Settings.player_is_spawned = true
+				#player.global_position = Vector3(random_location_x, altitude, random_location_z)
+				#Settings.player_is_spawned = true
 	else: return
+
+func load_spawn() -> void: # For loading a savegame
+	#print("load_spawn called, pending_load: ", SaveManager.pending_load)
+	var world_data = SaveManager.load_world()
+	#print("world_data: ", world_data)
+	if world_data.is_empty():
+		print("world_data empty, falling back to spawn()")
+		spawn() # Fall back to the normal spawn function if the world doesn't load correctly
+		return
+	
+	var pos = world_data["player_position"]
+	#print("Setting position to: ", pos)
+	player.global_position = Vector3(pos["x"], pos["y"], pos["z"])
+	head.rotation.y = world_data["player_rotation"]["head_y"]
+	eyes.rotation.x = world_data["player_rotation"]["eyes_x"]
+	
+	Settings.player_is_spawned = true
+	#SaveManager.is_loading = false

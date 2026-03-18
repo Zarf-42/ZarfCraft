@@ -10,7 +10,7 @@ var chunk_manager: ChunkManager
 # Radians per Pixel; needs VERY small values
 @export var mouse_sensitivity: float = Settings.mouse_sensitivity / 100
 @onready var head: Node3D = $Head
-@onready var player_eyes: Camera3D = $Head/PlayerEyes
+@onready var eyes: Camera3D = $Head/PlayerEyes
 @onready var spawn_altitude_cast: RayCast3D = $SpawnAltitudeCast
 @onready var player: CharacterBody3D = $"."
 @onready var chunk_size: int = Settings.chunk_size
@@ -30,10 +30,13 @@ const JUMP_VELOCITY = 9.8
 const GRAVITY: float = 9.8
 var paused = Settings.pause_state
 
+var found_chunk: Chunk = null # For finding the chunk the player is spawning in
+
 func _ready() -> void:
+	visible = false
+	#player.global_position = Vector3i(0, -1000, 0) # Place the player far below the world until the chunk is ready
 	EventBus.blocks_ready.connect(_on_blocks_ready)
 
-	player.global_position = Vector3i(0, 100, 0)
 	process_mode = Node.PROCESS_MODE_PAUSABLE
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	#player_focus.target_position = Settings.player_reach
@@ -54,7 +57,7 @@ func _physics_process(delta: float) -> void:
 			velocity.y += (-GRAVITY * delta) * 3
 
 	# Handle jump.
-	if Input.is_action_just_pressed("jump") and is_on_floor():
+	if Input.is_action_pressed("jump") and is_on_floor():
 		velocity.y = JUMP_VELOCITY
 	
 	if Input.is_action_just_released("jump") and !is_on_floor():
@@ -76,7 +79,7 @@ func _physics_process(delta: float) -> void:
 	var input_dir := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
 	var direction
 	if flying:
-		direction = (player_eyes.global_transform.basis * Vector3(input_dir.x, 0, input_dir.y)).normalized()
+		direction = (eyes.global_transform.basis * Vector3(input_dir.x, 0, input_dir.y)).normalized()
 		velocity = direction * SPEED * 2 * running
 	else:
 		direction = (head.global_transform.basis * Vector3(input_dir.x, 0, input_dir.y)).normalized()
@@ -90,8 +93,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		# Dunno what this does, part of the tutorial
 		var relative = event.relative * mouse_sensitivity
 		head.rotate_y(-relative.x)
-		player_eyes.rotate_x(-relative.y)
-		player_eyes.rotation.x = clamp(player_eyes.rotation.x, deg_to_rad(-80), deg_to_rad(80))
+		eyes.rotate_x(-relative.y)
+		eyes.rotation.x = clamp(eyes.rotation.x, deg_to_rad(-80), deg_to_rad(80))
 	
 	# Handle placing and removing blocks
 	if event.is_action_pressed("add_block"):
@@ -111,26 +114,102 @@ func _unhandled_input(event: InputEvent) -> void:
 func spawn() -> void:
 	if Settings.player_is_spawned == true:
 		return
-	elif Settings.player_is_spawned == false:
-		# This is written to spawn the player in initially. It can't do movable spawn points yet.
-		# This gets all of the block locations in the spawn_chunk.
-		var spawn_chunk = EventBus.chunk_manager.chunks.get(Vector3i(0, 0, 0), null)
-		if spawn_chunk:
-			var random_location_x = randi_range(0, chunk_size)
-			var random_location_z = randi_range(0, chunk_size)
-			# From 0 to whatever chunk_height is...
-			for y in Settings.chunk_height:
-				# If there's a block there, mark it down
-				var altitude = y + 1.5
-				# Adjust the spawn altitude for every layer that a block exists.
-				if spawn_chunk.voxels.has(Vector3i(random_location_x, y, random_location_z)):
-					altitude = y + 1.5
-				else:
-					# As soon as we run out of blocks, break out of this If statement
+		
+	var spawn_chunk = EventBus.chunk_manager.chunks.get(Vector3i(0, 0, 0), null)
+	if spawn_chunk == null:
+		return
+		
+	# Find any horizontal location within the chunk, with the -1 helping to stay inside the chunk
+	var random_location_x = randi_range(0, chunk_size - 1)
+	var random_location_z = randi_range(0, chunk_size - 1)
+
+	for y in range(Settings.chunk_height - 1, -1, -1):
+		if spawn_chunk.voxels.has(Vector3i(random_location_x, y, random_location_z)):
+			# Ensure there are at least 2 empty blocks above the player so we don't spawn inside the roof of a cave
+			var player_legs = spawn_chunk.voxels.has(Vector3i(random_location_x, y + 1, random_location_z))
+			var player_torso = spawn_chunk.voxels.has(Vector3i(random_location_x, y + 2, random_location_z))
+			if not player_legs and not player_torso:
+				# Check for horizontal clearance too
+				var has_horizontal_clearance = true
+				# Check each horizontal offset - here called "Delta", or "d".
+				for dx in [-1, 0, 1]:
+					for dz in [-1, 0, 1]:
+						if dx == 0 and dz == 0:
+							continue
+						var neighbor = Vector3i(random_location_x + dx, y + 1, random_location_z + dz)
+						if spawn_chunk.voxels.has(neighbor):
+							has_horizontal_clearance = false
+							print("Must push player back for horizontal clearance")
+							break
+					if not has_horizontal_clearance:
+						break
+				
+				if has_horizontal_clearance:
+					player.global_position = Vector3(random_location_x, y + 1, random_location_z)
+					Settings.player_is_spawned = true
+					visible = true
+					print("Spawned player at ", player.global_position)
 					return
-				# We have the max altitude, so spawn the player there. This will spawn players under 
-				# overhangs, including ones that are too short. Need to write something that checks if
-				# there's a gap large enough for the player.
-				player.global_position = Vector3(random_location_x, altitude, random_location_z)
-				Settings.player_is_spawned = true
-	else: return
+	
+	# If no valid spawn point is found, try again:
+	print("Unable to find valid spawn point, retrying...")
+	Settings.player_is_spawned = false
+	spawn()
+
+func load_spawn() -> void: # For loading a savegame
+	found_chunk = null
+	#print("load_spawn called, pending_load: ", SaveManager.pending_load)
+	var world_data = SaveManager.load_world()
+	#print("world_data: ", world_data)
+	if world_data.is_empty():
+		print("world_data empty, falling back to spawn()")
+		spawn() # Fall back to the normal spawn function if the world doesn't load correctly
+		return
+	
+	var pos = world_data["player_position"]
+	var target_pos = Vector3(pos["x"], pos["y"], pos["z"])
+	#player.global_position = Vector3(pos["x"], pos["y"], pos["z"])
+	
+	var chunk_x = int(floor(target_pos.x / Settings.chunk_size))
+	var chunk_z = int(floor(target_pos.z / Settings.chunk_size))
+	var chunk_key = Vector3i(chunk_x, chunk_z, 0)
+	while not EventBus.chunk_manager.chunks.has(chunk_key): # Attempt to prevent player spawning
+		# until the chunk they spawn in is ready
+		await get_tree().process_frame
+
+	var spawn_chunk = EventBus.chunk_manager.chunks.get(chunk_key, null)
+
+	
+	if spawn_chunk:
+		# Convert world position to local chunk position
+		var local_pos = Vector3i(
+		int(target_pos.x) - chunk_x * Settings.chunk_size,
+		int(target_pos.y),
+		int(target_pos.z) - chunk_z * Settings.chunk_size
+	)	
+		# Nudge player upwards until feet are clear
+		for i in range(10):
+			var feet = Vector3i(local_pos.x, local_pos.y, local_pos.z)
+			var head_pos = Vector3i(local_pos.x, local_pos.y + 1, local_pos.z)
+			if not spawn_chunk.voxels.has(feet) and not spawn_chunk.voxels.has(head_pos):
+				break
+			target_pos.y += 1.0
+			local_pos.y += 1
+		found_chunk = spawn_chunk
+	
+	# Check if this chunk has saved diffs that will trigger a rebuild
+	var chunk_filename = "%d_%d_%d.json" % [chunk_key.x, chunk_key.y, chunk_key.z]
+	var chunk_filepath = SaveManager.SAVE_DIR + SaveManager.pending_load + "/terrain/" + chunk_filename
+	var has_diffs = FileAccess.file_exists(chunk_filepath)
+	
+	if found_chunk and has_diffs:
+		print("Waiting for collision after diffs...")
+		await found_chunk.collision_ready
+
+	
+	player.global_position = target_pos
+	print("Player reloaded at ", player.global_position)
+	head.rotation.y = world_data["player_rotation"]["head_y"]
+	eyes.rotation.x = world_data["player_rotation"]["eyes_x"]
+	Settings.player_is_spawned = true
+	visible = true

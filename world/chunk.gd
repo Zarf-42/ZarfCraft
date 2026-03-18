@@ -13,12 +13,20 @@ extends StaticBody3D
 @onready var mesh_instance: MeshInstance3D = $TerrainMesh
 
 var voxels: Dictionary[Vector3i, BlockType] = {}
+# Dirty Voxels are voxels the player added or removed, that differ from natural terrain generation.
+# We are keeping track of these and only saving them, so we don't have to save every voxel in a chunk.
+# If we implement quarries, those chunks are going to have large save files, but everything else
+# should be way smaller. Also, we might be able to use some compression to shrink mostly empty chunks.
+var dirty_voxels: Dictionary = {}
 var number_of_textures_in_atlas: Vector2 = Vector2.ZERO
 
 #var surface_array: Array = []
 var vertices = PackedVector3Array()
 var normals = PackedVector3Array()
 var uvs = PackedVector2Array()
+
+# Adding keys to each chunk so it can be referenced by filename
+var chunks_key: Vector3i = Vector3i.ZERO
 
 # For Benchmarking
 @export var benchmarking: bool = false
@@ -43,6 +51,8 @@ var face_vertex_uvs: Dictionary = {}
 
 # For fixing freeze caused by all chunks being generated on the main thread
 var was_generated_by_thread: bool = false
+
+signal collision_ready
 
 # These are the vertice coordinates. The cube's center is at 0,0,0. The cube is 1 unit long, 
 # so each vertice is 0.5 units out from the center. X is left/right, Y is vertical, Z is depth.
@@ -279,6 +289,8 @@ func commit_visuals() -> void:
 
 func commit_collision() -> void:
 	collision_shape.shape = mesh_instance.mesh.create_trimesh_shape()
+	#print("Collision committed for: ", name, " shape: ", collision_shape.shape)
+	collision_ready.emit()
 
 # This is to address lag when adding or removing blocks.
 func request_rebuild() -> void:

@@ -52,6 +52,8 @@ var face_vertex_uvs: Dictionary = {}
 # For fixing freeze caused by all chunks being generated on the main thread
 var was_generated_by_thread: bool = false
 
+signal collision_ready
+
 # These are the vertice coordinates. The cube's center is at 0,0,0. The cube is 1 unit long, 
 # so each vertice is 0.5 units out from the center. X is left/right, Y is vertical, Z is depth.
 const cube_vertices: Array[Vector3] = [
@@ -287,6 +289,8 @@ func commit_visuals() -> void:
 
 func commit_collision() -> void:
 	collision_shape.shape = mesh_instance.mesh.create_trimesh_shape()
+	#print("Collision committed for: ", name, " shape: ", collision_shape.shape)
+	collision_ready.emit()
 
 # This is to address lag when adding or removing blocks.
 func request_rebuild() -> void:

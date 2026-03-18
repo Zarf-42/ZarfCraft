@@ -45,6 +45,7 @@ func quit_game() -> void:
 			threads.wait_to_finish()
 	EventBus.chunk_manager = null
 	EventBus.player = null
+	Settings.player_is_spawned = false
 	PauseManager.unpause()
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	get_tree().change_scene_to_file("res://ui/main_menu.tscn")

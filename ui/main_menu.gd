@@ -20,6 +20,7 @@ func _ready() -> void:
 
 func _on_new_pressed() -> void:
 	get_tree().change_scene_to_file("res://world/world.tscn")
+	Settings.player_is_spawned = false
 
 func _on_load_pressed() -> void:
 	var world_select = load("res://ui/load.tscn").instantiate()

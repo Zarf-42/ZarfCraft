@@ -110,6 +110,13 @@ func _unhandled_input(event: InputEvent) -> void:
 		scroll.emit("scroll_up")
 	if event.is_action_pressed("scroll_down"):
 		scroll.emit("scroll_down")
+	
+	if event.is_action_pressed("toggle_transparent"):
+		var chunk_manager = EventBus.chunk_manager
+		for chunk_pos in chunk_manager.chunks:
+			var chunk = chunk_manager.chunks[chunk_pos]
+			chunk.debug_transparent = !chunk.debug_transparent
+			chunk.commit_visuals()
 
 func spawn() -> void:
 	if Settings.player_is_spawned == true:

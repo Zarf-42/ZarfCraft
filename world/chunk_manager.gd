@@ -16,7 +16,9 @@ class_name ChunkManager extends Node
 @export var block_types: Array[BlockType] = []
 
 var render_distance = Settings.chunk_render_distance
-var random_generator = FastNoiseLite.new()
+var altitude_generator = FastNoiseLite.new() # Surface height noise
+var big_cave_generator = FastNoiseLite.new() # For large, open caves
+var long_cave_generator = FastNoiseLite.new() # For long, thin caves
 var kill_thread: bool = false
 
 var world_seed: int = 0
@@ -59,12 +61,12 @@ func _ready() -> void:
 	if SaveManager.is_loading:
 		var world_data = SaveManager.load_world()
 		if not world_data.is_empty():
-			random_generator.seed = int(world_data["seed"])
+			altitude_generator.seed = int(world_data["seed"])
 	else:
 		# Uncomment this to make the world gen random. It's not currently, which can be helpful in testing.
 		# Leaving this commented means the map will be the same every time you run the game.
 		world_seed = randi()
-		random_generator.seed = world_seed
+		altitude_generator.seed = world_seed
 	
 	# This makes it so the Signal emission at the end of generate_chunks() doesn't fire until the
 	# World script is loaded. If we don't have these lines, that signal emits before the connection
@@ -86,8 +88,19 @@ func _ready() -> void:
 	EventBus.chunk_manager = self
 
 func generate_terrain_infinite() -> Array:
-	random_generator.noise_type = FastNoiseLite.TYPE_SIMPLEX
-	random_generator.frequency = 0.003
+	# Initialize heightmap noise
+	altitude_generator.noise_type = FastNoiseLite.TYPE_SIMPLEX
+	altitude_generator.frequency = 0.003
+	
+	# Initialize cave noise for big open caves
+	big_cave_generator.noise_type = FastNoiseLite.TYPE_PERLIN
+	big_cave_generator.frequency = 0.05
+	big_cave_generator.seed = altitude_generator.seed + 1  # different seed from terrain
+	
+	# Initialize noise for long, thin caves
+	long_cave_generator.noise_type = FastNoiseLite.TYPE_PERLIN
+	long_cave_generator.frequency = 0.08
+	long_cave_generator.seed = altitude_generator.seed + 2  # different seed from terrain and big caves
 
 	var chunk_queue = get_chunk_queue()
 	var num_threads: int = loading_threads.size()
@@ -115,6 +128,8 @@ func get_chunk_queue() -> Array:
 			for y in range(-distance, distance + 1):
 				if maxi(absi(x), absi(y)) == distance:
 					chunk_queue.append(Vector3i(x, y, 0))
+					chunk_queue.append(Vector3i(x, y, 1))
+					chunk_queue.append(Vector3i(x, y, 2))
 				# Does this check for a chunk at 0,0? Is this just trying to avoid re-generating the spawn chunk?
 				# Commenting it out appears to do nothing bad. For now.
 				#if x == 0 and y == 0:
@@ -148,7 +163,7 @@ func generate_chunks(pos) -> void:
 		var new_chunk = chunk_class.instantiate()
 		new_chunk.position = Vector3i((chunk.x * chunk_size), (chunk.z * chunk_height), (chunk.y * chunk_size))
 		new_chunk.chunks_key = chunk
-		new_chunk.generate_data(chunk_size, chunk_height, random_generator, block_types)
+		new_chunk.generate_data(chunk_size, chunk_height, altitude_generator, big_cave_generator, long_cave_generator, block_types)
 		if SaveManager.is_loading:
 			SaveManager.apply_chunk_diffs(new_chunk, block_types)
 		new_chunk.generate_mesh()
@@ -165,8 +180,10 @@ func add_to_commit_queue(chunk: Chunk) -> void:
 		SaveManager.apply_chunk_diffs(chunk, block_types)
 
 func multithreaded_terrain_generation(chunks_by_thread, _number_of_threads) -> void:
-	var spawn_point = [Vector3i(0, 0, 0)]
-	generate_chunks(spawn_point)  # Generate spawn chunk first
+	# We need to generate the player's spawn position first. This must include all 3 vertical chunks
+	# that exist at this XY coordinate; underground, surface, and sky.
+	var spawn_point_chunks = [Vector3i(0, 0, 0), Vector3i(0, 0, 1), Vector3i(0, 0, 2)]
+	generate_chunks(spawn_point_chunks)  # Generate spawn chunk first
 	
 	for i in range(chunks_by_thread.size()):
 		if i < loading_threads.size() and not chunks_by_thread[i].is_empty():

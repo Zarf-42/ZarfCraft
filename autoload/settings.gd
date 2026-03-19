@@ -3,6 +3,7 @@ extends Node
 # Global settings to be loaded at runtime.
 const chunk_size: int = 32
 const chunk_height: int = 96
+const world_height_in_chunks: int = 3 # This allows for 3 vertical chunks. 1 underground, 1 surface, 1 sky.
 var mouse_mode = Input.MOUSE_MODE_CAPTURED
 # I changed this from Array[Thread] to try to fix errors when using threads. I think we can revert this,
 # but until I've eliminated any other Typed Arrays relating to Nodes, this needs to stay as it is.

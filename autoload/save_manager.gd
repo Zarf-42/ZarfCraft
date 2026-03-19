@@ -9,6 +9,7 @@ func _ready() -> void:
 		DirAccess.make_dir_absolute(SAVE_DIR)
 
 func save_world(world_name: String) -> void:
+	var start = Time.get_ticks_msec()
 	# Set the folder for the world we're saving
 	var world_dir = SAVE_DIR + world_name + "/"
 	if not DirAccess.dir_exists_absolute(world_dir):
@@ -25,7 +26,7 @@ func save_world(world_name: String) -> void:
 	var eyes = EventBus.player.get_node("Head/PlayerEyes")
 	var world_data = {
 		"world_name": world_name,
-		"seed": EventBus.chunk_manager.random_generator.seed,
+		"seed": EventBus.chunk_manager.altitude_generator.seed,
 		"player_position": {
 				"x":pos.x,
 				"y":pos.y,
@@ -41,12 +42,14 @@ func save_world(world_name: String) -> void:
 	file.store_string(JSON.stringify(world_data, "\t"))
 	file.close()
 	save_chunks(world_name)
+	print("Save completed in ", Time.get_ticks_msec() - start, "ms")
 
 # Saving terrain data
 func save_chunks(world_name: String) -> void:
 	var chunks = EventBus.chunk_manager.chunks
 	var block_types = EventBus.chunk_manager.block_types
 	var terrain_dir = SAVE_DIR + world_name + "/terrain/"
+	var saved_count = 0
 	
 	for chunk_pos in chunks:
 		var chunk = chunks[chunk_pos]
@@ -54,6 +57,8 @@ func save_chunks(world_name: String) -> void:
 		# Skip loading unmodified chunks
 		if chunk.dirty_voxels.is_empty():
 			continue
+		
+		saved_count += 1
 
 		var chunk_data = {}
 
@@ -73,6 +78,7 @@ func save_chunks(world_name: String) -> void:
 		var file = FileAccess.open(terrain_dir + filename, FileAccess.WRITE)
 		file.store_string(JSON.stringify(chunk_data))
 		file.close()
+	print("Saved %s chunks" % [saved_count])
 
 func load_world() -> Dictionary:
 	var world_dir = SAVE_DIR + pending_load + "/"

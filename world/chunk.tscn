@@ -1,6 +1,6 @@
 [gd_scene format=3 uid="uid://xbn4ypmc1oll"]
 
-[ext_resource type="Script" uid="uid://dl7w33xqehnw0" path="res://chunk.gd" id="1_kdh3y"]
+[ext_resource type="Script" uid="uid://dl7w33xqehnw0" path="res://world/chunk.gd" id="1_kdh3y"]
 [ext_resource type="Texture2D" uid="uid://tjx2w77isjok" path="res://blocks/textures/atlas.png" id="2_eat54"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_a0kup"]

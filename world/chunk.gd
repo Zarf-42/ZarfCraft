@@ -28,9 +28,19 @@ var uvs = PackedVector2Array()
 # Adding keys to each chunk so it can be referenced by filename
 var chunks_key: Vector3i = Vector3i.ZERO
 
+# For tuning cave generation
+@export var cave_frequency: float = 0.04			# lower = bigger caves
+@export var big_caves_threshold: float = 0.0001		# higher = rarer caves
+@export var long_caves_threshold: float = 0.02		# higher = rarer caves
+@export var cave_surface_margin: int = 10			# how many blocks from surface caves are suppressed
+@export var cave_surface_reduction: float = 0.15	# how much rarer caves are near surface
+
 # For Benchmarking
 @export var benchmarking: bool = false
 var face_time: int = 0
+
+# For debug rendering
+@export var debug_transparent: bool = false
 
 # These are implemented to make regenerating chunks multithreaded.
 var is_rebuilding: bool = false
@@ -127,13 +137,16 @@ func _ready() -> void:
 
 # This function determines the position of each block in a given chunk. I believe this is where we
 # need to record the location of each block, perhaps in a dictionary?
-func generate_data(chunk_size: int, max_height: int, noise: Noise, block_types: Array[BlockType])  -> void:
+func generate_data(chunk_size: int, max_height: int, heightmap_noise: Noise, big_cave_noise: Noise, long_cave_noise: Noise, block_types: Array[BlockType])  -> void:
 	# Define block types you'll need to refer to by name. Set them to 0 just in case something gets
 	# messed up, then look for them by value.
 	var default_block: BlockType = block_types[0]
 	var bedrock: BlockType = block_types[0]
 	var grass: BlockType = block_types[0]
 	var dirt: BlockType = block_types[0]
+	
+	# Establish which layer we're working in
+	var vertical_layer = int(round(position.y / max_height))
 	
 	# Instead of 0, we want these blocks to refer to their actual block type. Define them here.
 	for block in block_types:
@@ -145,58 +158,141 @@ func generate_data(chunk_size: int, max_height: int, noise: Noise, block_types: 
 			grass = block
 		if block.block_name == "Dirt":
 			dirt = block
+	
+	# Layer Behavior: Layer 2 is always air right now. When we implement mountains, we might change this.
+	if vertical_layer == 2:
+		return
 		
-	for x in range(chunk_size):
-		for z in range(chunk_size):
-			var global_pos = Vector3(transform.origin) + Vector3(x, 0, z)
+	# Layer 0 is underground. It uses heightmap noise for bedrock generation, but nothing else.
+	if vertical_layer == 0:
+		for x in range(chunk_size):
+			for z in range(chunk_size):
+				var global_pos = Vector3(transform.origin) + Vector3(x, 0, z)
+				for y in range(max_height):
+					if y == max_height - 1:  # Compare noise at the top of layer 0
+						print("Layer 0 top - sampling cave noise at Y: ", (y + position.y) * cave_frequency, " position.y: ", position.y)
+					var block_to_place: BlockType
+					if y == 0: block_to_place = bedrock
+					elif y <= 4:
+						var bedrock_noise = heightmap_noise.get_noise_2d(
+							global_pos.x * 0.5,
+							global_pos.z * 0.5
+							)
+						var bedrock_altitude = int((bedrock_noise + 1) / 2 * 3) + 1
+						if y <= bedrock_altitude:
+							block_to_place = bedrock
+						else: block_to_place = default_block
+					else:
+						block_to_place = default_block
+						
+					# Layer 0's caves
+					if block_to_place != bedrock:
+						# Generating caves is done by multiplying two noise samples (A and B) together.
+						var big_caves_a = big_cave_noise.get_noise_3d(
+							global_pos.x * cave_frequency,
+							(y + position.y) * cave_frequency,
+							global_pos.z * cave_frequency)
+						var big_caves_b = big_cave_noise.get_noise_3d(
+							global_pos.x * cave_frequency + 100.0,
+							(y + position.y) * cave_frequency,
+							global_pos.z * cave_frequency + 100.0)
+						var long_caves_a = long_cave_noise.get_noise_3d(
+							global_pos.x * cave_frequency,
+							(y + position.y) * cave_frequency,
+							global_pos.z * cave_frequency)
+						var long_caves_b = long_cave_noise.get_noise_3d(
+							global_pos.x * cave_frequency + 100.0,
+							(y + position.y) * cave_frequency,
+							global_pos.z * cave_frequency + 100.0)
+							
+						if abs(big_caves_a) < big_caves_threshold and abs(big_caves_b) < big_caves_threshold:
+							print("Carving at y: ", y)
+							continue
+						if abs(long_caves_a) < long_caves_threshold and abs(long_caves_b) < long_caves_threshold:
+							continue
+					voxels[Vector3i(x, y, z)] = block_to_place
+	
+	# Layer 1 is the surface, and needs a heightmap as well as the cave generator. This cave generator
+	# also has a Surface Factor, which makes caves less common closer to the surface.
+	if vertical_layer == 1:
+		for x in range(chunk_size):
+			for z in range(chunk_size):
+				var global_pos = Vector3(transform.origin) + Vector3(x, 0, z)
 
-			# This is the formula we use to generate the shape of our terrain. I believe the three
-			# get_noise_2ds act as 3 different octaves; the first generates large hills and valleys,
-			# the second adds medium details, and the third adds fine detail.
-			# The stuff on the ends of the lines ( +0.5, +0.25, etc) determine the steepness of these details.
-			var rand = ((
-				noise.get_noise_2d(global_pos.x, global_pos.z) + 0.6 * 
-				noise.get_noise_2d(global_pos.x * 2, global_pos.z * 2) + 0.25 * 
-				noise.get_noise_2d(global_pos.x * 4, global_pos.z * 4)) / 1.75 + 1) / 2
-			var rand_p = pow(rand, 2.1)
-			var height = int(max_height * rand_p)
+				# This is the formula we use to generate the shape of our terrain. The three
+				# get_noise_2ds act as 3 different octaves; the first generates large hills and valleys,
+				# the second adds medium details, and the third adds fine detail.
+				# The stuff on the ends of the lines ( +0.5, +0.25, etc) determine the steepness of these details.
+				var rand = ((
+					heightmap_noise.get_noise_2d(global_pos.x, global_pos.z) + 0.6 * 
+					heightmap_noise.get_noise_2d(global_pos.x * 2, global_pos.z * 2) + 0.25 * 
+					heightmap_noise.get_noise_2d(global_pos.x * 4, global_pos.z * 4)) / 1.75 + 1) / 2
+				var rand_p = pow(rand, 2.1)
+				# We need to offset byt position.y so terrain is generated within the current layer.
+				var height = int(max_height * rand_p) + int(position.y)
 
-			if height < position.y: continue
-			# This is the old color function replaced with BlockTypes to try to debug why the game
-			# hangs on runtime.
-			#var color_array = block_types
+				if height < position.y: continue
 
-			var local_height = int(height - position.y)
-			
-			# Dirt layer is 3-6 blocks below the surface
-			var dirt_depth = int(noise.get_noise_2d(global_pos.x * 0.3, global_pos.z * 0.3) * 1.5) + 4
-			
-			for y in range(min(local_height, max_height)):
-				if y == 0:
-					voxels[Vector3i(x, y, z)] = bedrock # All blocks at Y0 should be bedrock
+				var local_height = int(height - position.y)
 				
-				# Bedrock layer
-				if y <= 4: # Add noise distribution for bedrock above Y0
-					var bedrock_noise = noise.get_noise_2d(
-						global_pos.x * 0.5,
-						global_pos.z * 0.5)
-					# This absolute mess normalizes the noise values from (-1 to 1) to (1 to 4)
-					var bedrock_altitude = int((bedrock_noise + 1) / 2 * 3) + 1
-					if y <= bedrock_altitude:
-						voxels[Vector3i(x, y, z)] = bedrock
-						continue
+				# Dirt layer is 3-6 blocks below the surface
+				var dirt_depth = int(heightmap_noise.get_noise_2d(global_pos.x * 0.3, global_pos.z * 0.3) * 1.5) + 4
 				
-				# Surface layer, always grass
-				if y == local_height - 1: # This gets the top of the current XZ "column"
-					voxels[Vector3i(x, y, z)] = grass
-					continue
-				
-				# Subsurface dirt layer, thickness varies
-				if y >= local_height - dirt_depth:
-					voxels[Vector3i(x, y, z)] = dirt
-					continue
-				
-				voxels[Vector3i(x, y, z)] = default_block
+				for y in range(min(local_height, max_height)):
+					var block_to_place: BlockType
+					if y == 0:  # Compare noise at the bottom of layer 1
+						print("Layer 1 bottom - sampling cave noise at Y: ", (y + position.y) * cave_frequency, " position.y: ", position.y)
+						
+					# Surface layer, always grass
+					if y == local_height - 1: # This gets the top of the current XZ "column"
+						block_to_place = grass
+					
+					# Subsurface dirt layer, thickness varies
+					elif y >= local_height - dirt_depth:
+						block_to_place = dirt
+					else:
+						block_to_place = default_block
+					
+					# Cave generation
+					if block_to_place != bedrock:
+						# Caves can reach the surface, but they should be less common there
+						# Clamps between 0.0 and 1.0. Anything more than 10 blocks below the surface is
+						# considered "fully underground" and is clamped to 1.0. Anything above can have
+						# a factor inbetween 0.0 and 1.0. At the surface, factor = 0, at 5 blocks down,
+						# factor = 0.5, 10 blocks down or below = 1.0.
+						var surface_factor = clamp(float(local_height - y) / cave_surface_margin, 0.9, 1.0)
+						
+						# Generating caves is done by multiplying two noise samples (A and B) together.
+						var big_caves_a = big_cave_noise.get_noise_3d(
+							global_pos.x * cave_frequency,
+							y * cave_frequency,
+							global_pos.z * cave_frequency)
+						var big_caves_b = big_cave_noise.get_noise_3d(
+							global_pos.x * cave_frequency + 100.0,
+							y * cave_frequency,
+							global_pos.z * cave_frequency + 100.0)
+						
+						# Same for the long thin caves
+						var long_caves_a = long_cave_noise.get_noise_3d(
+							global_pos.x * cave_frequency,
+							y * cave_frequency,
+							global_pos.z * cave_frequency)
+						var long_caves_b = long_cave_noise.get_noise_3d(
+							global_pos.x * cave_frequency + 100.0,
+							y * cave_frequency,
+							global_pos.z * cave_frequency + 100.0)
+						
+						# This increases resistance to cave formation closer to the surface (I.E. 10+
+						# blocks below the surface)
+						var calculated_big_caves_threshold = big_caves_threshold * surface_factor
+						var calculated_long_caves_threshold = max(long_caves_threshold * surface_factor, long_caves_threshold * 0.1)
+
+						if abs(big_caves_a) < calculated_big_caves_threshold and abs(big_caves_b) < calculated_big_caves_threshold:
+							continue
+						if abs(long_caves_a) < calculated_long_caves_threshold and abs(long_caves_b) < calculated_long_caves_threshold:
+							continue
+					
+					voxels[Vector3i(x, y, z)] = block_to_place
  
 func generate_mesh() -> void:
 	if voxels.is_empty(): return
@@ -265,12 +361,18 @@ func commit_mesh() -> void:
 	# and fires a signal when the spawn point is ready.
 	commit_visuals()
 	commit_collision()
+	var chunk_height = Settings.chunk_height
 	
-	if mesh_instance.global_position == Vector3(0.0, 0.0, 0.0) && Settings.player_is_spawned == false:
+	# This makes sure that the player's spawn point is ready, but doesn't send the signal unless the
+	# Surface chunk in that XZ coordinate is the one that's ready.
+	if mesh_instance.global_position == Vector3(0.0, chunk_height, 0.0) && Settings.player_is_spawned == false:
 		EventBus.spawn_chunk_is_ready.emit()
 	else: return
 	
 func commit_visuals() -> void:
+	# This will return empty chunks, like for sky.
+	if vertices.is_empty():
+		return
 	var start = Time.get_ticks_msec()
 	# Commit Visuals seperately so we can do this relatively inexpensive operation more often than
 	# the expensive operating of committing Collision.
@@ -286,8 +388,17 @@ func commit_visuals() -> void:
 	mesh_instance.mesh = new_mesh
 	if benchmarking == true:
 		print("Commit Visuals: %s ms" % (Time.get_ticks_msec() - start))
+	if debug_transparent:
+		(material as StandardMaterial3D).transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		(material as StandardMaterial3D).albedo_color = Color(1, 1, 1, 0.5)
+	else:
+		(material as StandardMaterial3D).transparency = BaseMaterial3D.TRANSPARENCY_DISABLED
+		(material as StandardMaterial3D).albedo_color = Color(1, 1, 1, 1)
 
 func commit_collision() -> void:
+	# This will return empty chunks, like for sky.
+	if mesh_instance.mesh == null:
+		return
 	collision_shape.shape = mesh_instance.mesh.create_trimesh_shape()
 	#print("Collision committed for: ", name, " shape: ", collision_shape.shape)
 	collision_ready.emit()

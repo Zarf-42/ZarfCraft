@@ -8,6 +8,7 @@ extends Resource
 @export var breakable: bool = true # Blocks that players can't break in normal circumstances (like
 # bedrock in Minecraft) should be set to False.
 @export var hardness: int = 10 # This will determine how long it takes to break a block.
+@export var is_transparent: bool = false
 
 # This drop table defines what tools will let this block drop itself.
 # We may need to modify this so that we can have a percentage chance of certain drops. I.E. a machine

@@ -110,12 +110,18 @@ func _unhandled_input(event: InputEvent) -> void:
 		scroll.emit("scroll_up")
 	if event.is_action_pressed("scroll_down"):
 		scroll.emit("scroll_down")
+	
+	if event.is_action_pressed("toggle_transparent"):
+		EventBus.debug_transparent = !EventBus.debug_transparent
+		print("Requested toggle of transparency")
+		for chunk_pos in EventBus.chunk_manager.chunks:
+			EventBus.chunk_manager.chunks[chunk_pos].commit_visuals()
 
 func spawn() -> void:
 	if Settings.player_is_spawned == true:
 		return
 		
-	var spawn_chunk = EventBus.chunk_manager.chunks.get(Vector3i(0, 0, 0), null)
+	var spawn_chunk = EventBus.chunk_manager.chunks.get(Vector3i(0, 0, 1), null)
 	if spawn_chunk == null:
 		return
 		
@@ -132,20 +138,26 @@ func spawn() -> void:
 				# Check for horizontal clearance too
 				var has_horizontal_clearance = true
 				# Check each horizontal offset - here called "Delta", or "d".
-				for dx in [-1, 0, 1]:
-					for dz in [-1, 0, 1]:
-						if dx == 0 and dz == 0:
-							continue
-						var neighbor = Vector3i(random_location_x + dx, y + 1, random_location_z + dz)
-						if spawn_chunk.voxels.has(neighbor):
-							has_horizontal_clearance = false
-							print("Must push player back for horizontal clearance")
-							break
-					if not has_horizontal_clearance:
+				var neighbors = [
+					Vector3i(random_location_x + 1, y + 1, random_location_z),
+					Vector3i(random_location_x - 1, y + 1, random_location_z),
+					Vector3i(random_location_x, y + 1, random_location_z + 1),
+					Vector3i(random_location_x, y + 1, random_location_z - 1),
+				]
+				for neighbor in neighbors:
+					if spawn_chunk.voxels.has(neighbor):
+						has_horizontal_clearance = false
 						break
+				if not has_horizontal_clearance:
+					continue
 				
 				if has_horizontal_clearance:
-					player.global_position = Vector3(random_location_x, y + 1, random_location_z)
+					# Add chunk's world position to get correct world coords
+					var world_y = y + spawn_chunk.position.y
+					# Wait for collision to be ready if it isn't yet
+					if not spawn_chunk.collision_shape.shape:
+						await spawn_chunk.collision_ready
+					player.global_position = Vector3(random_location_x, world_y + 1, random_location_z)
 					Settings.player_is_spawned = true
 					visible = true
 					print("Spawned player at ", player.global_position)

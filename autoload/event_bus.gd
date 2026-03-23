@@ -11,6 +11,7 @@ extends Node
 
 var chunk_manager: ChunkManager
 var player: CharacterBody3D
+var debug_transparent: bool = false
 
 signal spawn_chunk_is_ready
 signal chunk_spawned

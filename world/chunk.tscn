@@ -5,13 +5,20 @@
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_a0kup"]
 albedo_texture = ExtResource("2_eat54")
+metallic_specular = 0.0
 rim = 0.1
 ao_light_affect = 0.8
+texture_filter = 0
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_uc5gi"]
+transparency = 1
+albedo_texture = ExtResource("2_eat54")
 texture_filter = 0
 
 [node name="Chunk" type="StaticBody3D" unique_id=1147404096]
 script = ExtResource("1_kdh3y")
 material = SubResource("StandardMaterial3D_a0kup")
+transparent_material = SubResource("StandardMaterial3D_uc5gi")
 
 [node name="TerrainCollision" type="CollisionShape3D" parent="." unique_id=1799023280]
 

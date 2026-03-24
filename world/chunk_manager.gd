@@ -2,11 +2,6 @@ class_name ChunkManager extends Node
 
 # Chunk Manager defines the order in which chunks are generated. It splits this task among the available threads.
 
-# This determines if we use infinite word generation size or finite.
-@export var finite_world: bool = false
-# This is used to determine the size of the world in meters, if Infinite World Generation isn't 
-# turned on.
-@export var world_vector: int = 128
 # Chunk Size doesn't include vertical height, since we likely will be using tall chunks.
 @onready var chunk_size: int = Settings.chunk_size
 @onready var chunk_height: int = Settings.chunk_height
@@ -20,6 +15,14 @@ var altitude_generator = FastNoiseLite.new() # Surface height noise
 var big_cave_generator = FastNoiseLite.new() # For large, open caves
 var long_cave_generator = FastNoiseLite.new() # For long, thin caves
 var kill_thread: bool = false
+
+# For benchmarking chunk gen times.
+var is_benchmarking: bool = true
+var total_visual_time: int = 0
+var total_collision_time: int = 0
+var visual_commit_count: int = 0
+var collision_commit_count: int = 0
+var stop_timing_chunk_generation: bool = false
 
 var world_seed: int = 0
 
@@ -37,27 +40,46 @@ var chunk_collision_queue: Array = []
 var chunk_class = preload("res://world/chunk.tscn")
 var chunks: Dictionary[Vector3i, Chunk] = {}
 
-# This is a boolean that we use to determine if a thread is stopped or not. We use it in thread_is_kill.
-var kill: bool = false
-
 func _process(_delta: float) -> void:
-	#var visual_time = 0
 	while not chunk_visual_queue.is_empty():
 		var chunk = chunk_visual_queue.pop_front() # pop this chunk into the front of the queue
-		#var t = Time.get_ticks_msec()
+		var start_time = Time.get_ticks_msec()
 		chunk.commit_visuals()
-		#visual_time = Time.get_ticks_msec() - t
+		total_visual_time = Time.get_ticks_msec() - start_time
+		visual_commit_count += 1
+		stop_timing_chunk_generation = false
 		chunk_collision_queue.append(chunk) # Seperately queued collision
 	
 	# Commit one collision chunk per frame
 	if not chunk_collision_queue.is_empty():
 		var chunk = chunk_collision_queue.pop_front() # pop this chunk into the front of the queue
+		var start_time = Time.get_ticks_msec()
 		chunk.commit_collision()
-		
-		if chunk.position == Vector3(0.0, 0.0, 0.0) and Settings.player_is_spawned == false:
+		total_collision_time = Time.get_ticks_msec() - start_time
+		collision_commit_count += 1
+		stop_timing_chunk_generation = false
+		if chunk.position == Vector3(0.0, Settings.chunk_height, 0.0) and Settings.player_is_spawned == false:
 			EventBus.spawn_chunk_is_ready.emit()
 
+	# Print average time taken to generate visual and collision once both queues are empty
+	if chunk_visual_queue.is_empty() and chunk_collision_queue.is_empty() and stop_timing_chunk_generation == false:
+		print("=== Commit Queue Complete ===")
+		if visual_commit_count > 0:
+			print("Visual:		avg %s over %s chunks" % [
+				float(total_visual_time) / visual_commit_count, visual_commit_count])
+		if collision_commit_count > 0:
+			print("Collision:	avg %s over %s chunks" % [
+				float(total_collision_time) / collision_commit_count, collision_commit_count])
+
+		# Reset for the next generation cycle (I.E. when a player enters a new chunk or starts a new world)
+		total_visual_time = 0
+		total_collision_time = 0
+		visual_commit_count = 0
+		collision_commit_count = 0
+		stop_timing_chunk_generation = true
+
 func _ready() -> void:
+	BlockRegistry.register(block_types)
 	if SaveManager.is_loading:
 		var world_data = SaveManager.load_world()
 		if not world_data.is_empty():
@@ -75,6 +97,9 @@ func _ready() -> void:
 	
 	player.add_block.connect(self._on_add_block)
 	player.remove_block.connect(self._on_remove_block)
+
+	# This tells everybody when the Chunk Manager (I.E. this file) is ready
+	EventBus.chunk_manager = self
 	
 	var chunks_to_generate = []
 	chunks_to_generate = generate_terrain_infinite()
@@ -84,8 +109,6 @@ func _ready() -> void:
 	# Tell other scenes we're ready
 	EventBus.blocks_ready.emit(block_types)
 	
-	# This tells everybody when the Chunk Manager (I.E. this file) is ready
-	EventBus.chunk_manager = self
 
 func generate_terrain_infinite() -> Array:
 	# Initialize heightmap noise
@@ -130,31 +153,7 @@ func get_chunk_queue() -> Array:
 					chunk_queue.append(Vector3i(x, y, 0))
 					chunk_queue.append(Vector3i(x, y, 1))
 					chunk_queue.append(Vector3i(x, y, 2))
-				# Does this check for a chunk at 0,0? Is this just trying to avoid re-generating the spawn chunk?
-				# Commenting it out appears to do nothing bad. For now.
-				#if x == 0 and y == 0:
-					#continue
-			
-				# Check if this chunk is in the current ring
-				#var current_ring = Vector2i(x, y).length()
-				#
-				#if current_ring > (distance - 1) and current_ring <= distance:
-					#chunk_queue.append(Vector3i(x, y, 0)) # Underground Layer
 	return(chunk_queue)
-
-# First, this checks the chunk to see if it needs to be skipped. If not, it goes to add_chunk_to_screen().
-#func generate_a_chunk(x, y, z):
-	#var position = Vector3i(x, y, z)
-	#if skip_these_chunks.has(position):
-		#print("Skipping existing chunk at ", position)
-		#return
-
-	# Generate the chunk otherwise. This function defines each chunk's properties before putting it onscreen.
-	# This is also where we need to hook in to generate terrain per chunk.
-	#else:
-		#pass
-		# This needs to be whatever function actually adds a chunk to the worldspace.
-		# add_chunk_to_screen(x, y)
 
 func generate_chunks(pos) -> void:
 	for chunk in pos:
@@ -163,9 +162,9 @@ func generate_chunks(pos) -> void:
 		var new_chunk = chunk_class.instantiate()
 		new_chunk.position = Vector3i((chunk.x * chunk_size), (chunk.z * chunk_height), (chunk.y * chunk_size))
 		new_chunk.chunks_key = chunk
-		new_chunk.generate_data(chunk_size, chunk_height, altitude_generator, big_cave_generator, long_cave_generator, block_types)
+		new_chunk.generate_data(chunk_size, chunk_height, altitude_generator, big_cave_generator, long_cave_generator)
 		if SaveManager.is_loading:
-			SaveManager.apply_chunk_diffs(new_chunk, block_types)
+			SaveManager.apply_chunk_diffs(new_chunk)
 		new_chunk.generate_mesh()
 		new_chunk.was_generated_by_thread = true
 		new_chunk.name = str((new_chunk.position as Vector3i) / Vector3i(chunk_size, chunk_height, chunk_size))
@@ -177,7 +176,7 @@ func add_to_commit_queue(chunk: Chunk) -> void:
 	chunk_visual_queue.append(chunk)
 	# When loading, apply and saved diffs to this chunk immediately.
 	if SaveManager.is_loading:
-		SaveManager.apply_chunk_diffs(chunk, block_types)
+		SaveManager.apply_chunk_diffs(chunk)
 
 func multithreaded_terrain_generation(chunks_by_thread, _number_of_threads) -> void:
 	# We need to generate the player's spawn position first. This must include all 3 vertical chunks
@@ -189,41 +188,54 @@ func multithreaded_terrain_generation(chunks_by_thread, _number_of_threads) -> v
 		if i < loading_threads.size() and not chunks_by_thread[i].is_empty():
 			loading_threads[i].start(func(): generate_chunks(chunks_by_thread[i]))
 
-func _on_add_block(_pos: Vector3i) -> void:
-	var chunk = player_focus.get_collider() as Chunk
-	var append_position = player_focus.get_ray_hit().add_position - Vector3i(chunk.global_position)
-	var world_position = player_focus.get_ray_hit().add_position
+# This ensures voxels get added to the correct chunk. If chunk size is 32x32 and player adds one at
+# 33, it'll add the block to the neighboring chunk.
+func get_target_chunk(world_position: Vector3i, current_chunk: Chunk) -> Dictionary:
+	var local_pos = world_position - Vector3i(current_chunk.global_position)
 	
-	# Check which chunk to add the block to
-	var correct_chunk = chunk
-	var correct_local_pos = append_position
+	# Check if position is within this chunk's bounds
+	if local_pos.x >= 0 and local_pos.x < Settings.chunk_size and \
+		local_pos.z >= 0 and local_pos.z < Settings.chunk_size and \
+		local_pos.y >= 0 and local_pos.y < Settings.chunk_height:
+		return {"chunk": current_chunk, "local_pos": local_pos}
 	
-	if append_position.x < 0 or append_position.x >= Settings.chunk_size or\
-	append_position.z < 0 or append_position.z >= Settings.chunk_size or\
-	append_position.y < 0 or append_position.y >= Settings.chunk_height:
-		# Determine which chunk this voxel actually belongs to
-		var correct_chunk_x = int(floor(float(world_position.x) / Settings.chunk_size))
-		var correct_chunk_z = int(floor(float(world_position.z) / Settings.chunk_size))
-		var correct_chunk_key = Vector3i(correct_chunk_x, correct_chunk_z, 0)
-		correct_chunk = chunks.get(correct_chunk_key, null)
-		if correct_chunk == null:
-			return # This may help if we ever have constrained-sized worlds.
-		correct_local_pos = world_position - Vector3i(correct_chunk.global_position)
-	
-	# Ensure new block won't intersect with player's center
+	# Determine which chunk this voxel actually belongs to
+	var correct_chunk_x = int(floor(float(world_position.x) / Settings.chunk_size))
+	var correct_chunk_z = int(floor(float(world_position.z) / Settings.chunk_size))
+	var correct_chunk_key = Vector3i(correct_chunk_x, correct_chunk_z, 0)
+	var correct_chunk = chunks.get(correct_chunk_key, null)
+	if correct_chunk == null:
+		return {} # This may help if we ever have constrained-sized worlds.
+	return {"chunk": correct_chunk, "local_pos": world_position - Vector3i(correct_chunk.global_position)}
+
+# Checks to see if a block the player is placing would collide with the player, which could cause the
+# player to fall through geometry
+func would_collide_with_player(world_position: Vector3i) -> bool:
 	var player_center = player.global_position + Vector3(0.0, 0.5, 0.0)
 	var block_center = Vector3(world_position) + Vector3(0.5, 0.5, 0.5)
-	
-	# Prevent adding only if the block is within the player's capsule radius
 	var horizontal_dist = Vector2(
 		player_center.x - block_center.x, 
 		player_center.z - block_center.z).length()
 	var vertical_overlap = abs(player_center.y - block_center.y) < 1.2
+	return horizontal_dist < 0.75 and vertical_overlap
 	
-	if horizontal_dist < 0.75 and vertical_overlap:
+func _on_add_block(_pos: Vector3i) -> void:
+	var chunk = player_focus.get_collider() as Chunk
+	#var append_position = player_focus.get_ray_hit().add_position - Vector3i(chunk.global_position)
+	var world_position = player_focus.get_ray_hit().add_position
+	
+	if would_collide_with_player(world_position):
 		return
 	
+	var target = get_target_chunk(world_position, chunk)
+	if target.is_empty():
+		return
+	
+	# Check which chunk to add the block to
+	var correct_chunk = target["chunk"]
+	var correct_local_pos = target["local_pos"]
 	var selected_block = player.selected_block_type
+
 	correct_chunk.regen_mutex.lock()
 	correct_chunk.voxels[correct_local_pos] = selected_block
 	correct_chunk.dirty_voxels[correct_local_pos] = selected_block
@@ -253,7 +265,7 @@ func remove_chunk(chunk_position: Vector3i) -> void:
 # This acts as a flag that should allow us to terminate threads almost instantly.
 func thread_is_kill() -> bool:
 	kill_thread = true
-	return kill
+	return kill_thread
 
 func _exit_tree() -> void:
 	for thread in loading_threads:

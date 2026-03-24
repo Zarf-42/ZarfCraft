@@ -17,10 +17,13 @@ extends StaticBody3D
 @onready var mesh_instance: MeshInstance3D = $TerrainMesh
 
 var voxels: Dictionary[Vector3i, BlockType] = {}
-# Dirty Voxels are voxels the player added or removed, that differ from natural terrain generation.
+# Dirty voxels are, as opposed to naturally generated voxels, ones that the player has added or removed.
+# They will also include things like liquids that have flowed into neighboring blocks.
 # We are keeping track of these and only saving them, so we don't have to save every voxel in a chunk.
 # If we implement quarries, those chunks are going to have large save files, but everything else
-# should be way smaller. Also, we might be able to use some compression to shrink mostly empty chunks.
+# should be way smaller. We might be able to use some compression to shrink mostly empty chunks.
+
+
 var dirty_voxels: Dictionary = {}
 var number_of_textures_in_atlas: Vector2 = Vector2.ZERO
 
@@ -43,8 +46,6 @@ var chunks_key: Vector3i = Vector3i.ZERO
 @export var big_cave_size: float = 0.15				# Lower = bigger caves
 @export var long_cave_density: float = 0.05			# 0-1, higher = more caves
 @export var long_cave_size: float = 0.15				# Lower = bigger caves
-#@export var big_caves_threshold: float = 0.2		# higher = more caves
-#@export var long_caves_threshold: float = 0.5		# higher = more caves
 @export var cave_surface_margin: int = 10			# how many blocks from surface caves are suppressed
 @export var cave_surface_reduction: float = 0.15	# how much rarer caves are near surface
 
@@ -148,30 +149,30 @@ func _ready() -> void:
 	
 	commit_mesh()
 
-func get_block_types(block_types: Array[BlockType]) -> Dictionary:
-	var result = {
-		"default": block_types[0],
-		"bedrock": block_types[0],
-		"grass": block_types[0],
-		"dirt": block_types[0],
-		"oak leaves": block_types[0],
-		"oak log": block_types[0]
-	}
-	
-	for block in block_types:
-		if block.block_name == Settings.default_block:
-			result["default"] = block
-		if block.block_name == "Bedrock":
-			result["bedrock"] = block
-		if block.block_name == "Grass":
-			result["grass"] = block
-		if block.block_name == "Dirt":
-			result["dirt"] = block
-		if block.block_name == "Oak Leaves":
-			result["oak leaves"] = block
-		if block.block_name == "Oak Log":
-			result["oak log"] = block
-	return result
+#func get_block_types(block_types: Array[BlockType]) -> Dictionary:
+	#var result = {
+		#"default": block_types[0],
+		#"bedrock": block_types[0],
+		#"grass": block_types[0],
+		#"dirt": block_types[0],
+		#"oak leaves": block_types[0],
+		#"oak log": block_types[0]
+	#}
+
+	#for block in block_types:
+		#if block.block_name == Settings.default_block:
+			#result["default"] = block
+		#if block.block_name == "Bedrock":
+			#result["bedrock"] = block
+		#if block.block_name == "Grass":
+			#result["grass"] = block
+		#if block.block_name == "Dirt":
+			#result["dirt"] = block
+		#if block.block_name == "Oak Leaves":
+			#result["oak leaves"] = block
+		#if block.block_name == "Oak Log":
+			#result["oak log"] = block
+	#return result
 
 func carve_caves(global_pos: Vector3, world_y: float, big_cave_noise: Noise, long_cave_noise: Noise, surface_factor: float) -> bool:
 	# We currently have two types of cave systems: Big caves and Long caves. Big caves tend to be large open areas, long caves
@@ -211,89 +212,96 @@ func get_bedrock_height(global_pos: Vector3, heightmap_noise: Noise) -> int:
 
 # This function determines the position of each block in a given chunk. I believe this is where we
 # need to record the location of each block, perhaps in a dictionary?
-func generate_data(chunk_size: int, max_height: int, heightmap_noise: Noise, big_cave_noise: Noise, long_cave_noise: Noise, block_types: Array[BlockType])  -> void:
+func generate_data(chunk_size: int, max_height: int, heightmap_noise: Noise, big_cave_noise: Noise, long_cave_noise: Noise)  -> void:
 	# Define block types you'll need to refer to by name. Set them to 0 just in case something gets
 	# messed up, then look for them by value.
-	var blocks = get_block_types(block_types)
-	var bedrock = blocks["bedrock"]
-	var grass = blocks["grass"]
-	var dirt = blocks["dirt"]
-	var default_block = blocks["default"]
-	
+	#var blocks = get_block_types(block_types)
+	var bedrock = BlockRegistry.get_block("bedrock")
+	var grass = BlockRegistry.get_block("grass")
+	var dirt = BlockRegistry.get_block("dirt")
+	var default_block = BlockRegistry.get_block(Settings.default_block)
+
+	if bedrock == null or grass == null or dirt == null or default_block == null:
+		print("WARNING: missing block types, skipping generation")
+		return
+
 	# Establish which layer we're working in
 	var vertical_layer = int(round(position.y / max_height))
 	
-	# Layer Behavior: Layer 2 is always air right now. When we implement mountains, we might change this.
-	if vertical_layer == 2:
-		return
+	# Different terrain generation methods for different layers.
+	match vertical_layer:
+		0: generate_underground_layer(chunk_size, max_height, heightmap_noise, big_cave_noise, long_cave_noise, bedrock, default_block)
+		1: generate_surface_layer(chunk_size, max_height, heightmap_noise, big_cave_noise, long_cave_noise, bedrock, grass, dirt, default_block)
+		_: pass  # Layer is just air for now, so we have nothing to generate. We'll have to cahnge this when we implement mountain biomes.
 		
-	# Layer 0: Underground, caves, bedrock
-	if vertical_layer == 0:
-		for x in range(chunk_size):
-			for z in range(chunk_size):
-				var global_pos = Vector3(transform.origin) + Vector3(x, 0, z)
-				for y in range(max_height):
-					#if y == max_height - 1:  # Compare noise at the top of layer 0
-						#print("Layer 0 top - sampling cave noise at Y: ", (y + position.y) * cave_frequency, " position.y: ", position.y)
-						
-					var block_to_place: BlockType
-					if y == 0: block_to_place = bedrock
-					elif y <= get_bedrock_height(global_pos, heightmap_noise): block_to_place = bedrock
-					else: block_to_place = default_block
-						
-					# Layer 0's caves
-					if block_to_place != bedrock:
-						if carve_caves(global_pos, y + position.y, big_cave_noise, long_cave_noise, 1.0):
-							continue
-					voxels[Vector3i(x, y, z)] = block_to_place
+# Layer 0: Underground, caves, bedrock
+func generate_underground_layer(chunk_size: int, max_height: int, heightmap_noise: Noise,
+	big_cave_noise: Noise, long_cave_noise: Noise, bedrock: BlockType,
+	default_block: BlockType) -> void:
+		
+	for x in range(chunk_size):
+		for z in range(chunk_size):
+			var global_pos = Vector3(transform.origin) + Vector3(x, 0, z)
+			for y in range(max_height):
+				var block_to_place: BlockType
+				if y == 0: block_to_place = bedrock
+				elif y <= get_bedrock_height(global_pos, heightmap_noise): block_to_place = bedrock
+				else: block_to_place = default_block
+					
+				# Layer 0's caves
+				if block_to_place != bedrock:
+					if carve_caves(global_pos, y + position.y, big_cave_noise, long_cave_noise, 1.0):
+						continue
+				voxels[Vector3i(x, y, z)] = block_to_place
 	
-	# Layer 1: Surface Terrain and Caves
-	if vertical_layer == 1:
-		for x in range(chunk_size):
-			for z in range(chunk_size):
-				var global_pos = Vector3(transform.origin) + Vector3(x, 0, z)
+# Layer 1: Surface Terrain and Caves
+func generate_surface_layer(chunk_size: int, max_height: int, heightmap_noise: Noise,
+	big_cave_noise: Noise, long_cave_noise: Noise, bedrock: BlockType, grass: BlockType,
+	dirt: BlockType, default_block: BlockType) -> void:
+		
+	for x in range(chunk_size):
+		for z in range(chunk_size):
+			var global_pos = Vector3(transform.origin) + Vector3(x, 0, z)
 
-				# This is the formula we use to generate the shape of our terrain. The three
-				# get_noise_2ds act as 3 different octaves; the first generates large hills and valleys,
-				# the second adds medium details, and the third adds fine detail.
-				# The stuff on the ends of the lines ( +0.5, +0.25, etc) determine the steepness of these details.
-				var rand = ((
-					heightmap_noise.get_noise_2d(global_pos.x, global_pos.z) + 0.6 * 
-					heightmap_noise.get_noise_2d(global_pos.x * 2, global_pos.z * 2) + 0.25 * 
-					heightmap_noise.get_noise_2d(global_pos.x * 4, global_pos.z * 4)) / 1.75 + 1) / 2
-				var rand_p = pow(rand, 2.1)
-				# We need to offset by position.y so terrain is generated within the current layer.
-				var height = int(max_height * rand_p) + int(position.y)
+			# This is the formula we use to generate the shape of our terrain. The three
+			# get_noise_2ds act as 3 different octaves; the first generates large hills and valleys,
+			# the second adds medium details, and the third adds fine detail.
+			# The stuff on the ends of the lines ( +0.5, +0.25, etc) determine the steepness of these details.
+			var rand = ((
+				heightmap_noise.get_noise_2d(global_pos.x, global_pos.z) + 0.6 * 
+				heightmap_noise.get_noise_2d(global_pos.x * 2, global_pos.z * 2) + 0.25 * 
+				heightmap_noise.get_noise_2d(global_pos.x * 4, global_pos.z * 4)) / 1.75 + 1) / 2
+			var rand_p = pow(rand, 2.1)
+			# We need to offset by position.y so terrain is generated within the current layer.
+			var height = int(max_height * rand_p) + int(position.y)
 
-				if height < position.y: continue
+			if height < position.y: continue
 
-				var local_height = int(height - position.y)
+			var local_height = int(height - position.y)
+			
+			# Dirt layer is 3-6 blocks below the surface
+			var dirt_depth = int(heightmap_noise.get_noise_2d(global_pos.x * 0.3, global_pos.z * 0.3) * 1.5) + 4
+			
+			for y in range(min(local_height, max_height)):
+				var block_to_place: BlockType
+					
+				# Surface layer, always grass
+				if y == local_height - 1: # This gets the top of the current XZ "column"
+					block_to_place = grass
 				
-				# Dirt layer is 3-6 blocks below the surface
-				var dirt_depth = int(heightmap_noise.get_noise_2d(global_pos.x * 0.3, global_pos.z * 0.3) * 1.5) + 4
+				# Subsurface dirt layer, thickness varies
+				elif y >= local_height - dirt_depth:
+					block_to_place = dirt
+				else:
+					block_to_place = default_block
 				
-				for y in range(min(local_height, max_height)):
-					var block_to_place: BlockType
-					#if y == 0:  # Compare noise at the bottom of layer 1
-						#print("Layer 1 bottom - sampling cave noise at Y: ", (y + position.y) * cave_frequency, " position.y: ", position.y)
+				# Cave generation
+				if block_to_place != bedrock:
+					var surface_factor = clamp(float(local_height - y) / cave_surface_margin, 0.2, 1.0)
+					if carve_caves(global_pos, y + position.y, big_cave_noise, long_cave_noise, surface_factor):
+						continue
 						
-					# Surface layer, always grass
-					if y == local_height - 1: # This gets the top of the current XZ "column"
-						block_to_place = grass
-					
-					# Subsurface dirt layer, thickness varies
-					elif y >= local_height - dirt_depth:
-						block_to_place = dirt
-					else:
-						block_to_place = default_block
-					
-					# Cave generation
-					if block_to_place != bedrock:
-						var surface_factor = clamp(float(local_height - y) / cave_surface_margin, 0.2, 1.0)
-						if carve_caves(global_pos, y + position.y, big_cave_noise, long_cave_noise, surface_factor):
-							continue
-							
-					voxels[Vector3i(x, y, z)] = block_to_place
+				voxels[Vector3i(x, y, z)] = block_to_place
  
 func generate_mesh() -> void:
 	if voxels.is_empty(): return
@@ -341,9 +349,6 @@ func should_hide_face(pos: Vector3i, neighbor_pos: Vector3i, current_block: Bloc
 		return neighbor == current_block  # This culls the face ONLY if both blocks are the same.
 	return true  # Neighbor is opaque,cull.
 
-func has_neighbor(data: Dictionary[Vector3i, BlockType], face: Face, pos: Vector3) -> bool:
-	# This checks all adjacent positions for neighbors. If one exists, we skip generating that face.
-	return data.has(pos + face_normals[face])
 
 func add_face(face: Face, vertice_position: Vector3, block: BlockType) -> void:
 	var start_time = Time.get_ticks_msec()
@@ -371,8 +376,8 @@ func add_face(face: Face, vertice_position: Vector3, block: BlockType) -> void:
 				vertices.append(vertex)
 				normals.append(normal)
 				uvs.append(uv)
-
-	face_time += Time.get_ticks_msec() - start_time
+	if benchmarking == true:
+		face_time += Time.get_ticks_msec() - start_time
 
 func commit_mesh() -> void:
 	# This used to be the main function that generated chunks. Now it generates the initial chunks
@@ -383,9 +388,9 @@ func commit_mesh() -> void:
 	
 	# This makes sure that the player's spawn point is ready, but doesn't send the signal unless the
 	# Surface chunk in that XZ coordinate is the one that's ready.
-	if mesh_instance.global_position == Vector3(0.0, chunk_height, 0.0) && Settings.player_is_spawned == false:
-		EventBus.spawn_chunk_is_ready.emit()
-	else: return
+	#if mesh_instance.global_position == Vector3(0.0, chunk_height, 0.0) && Settings.player_is_spawned == false:
+		#EventBus.spawn_chunk_is_ready.emit()
+	#else: return
 	
 func commit_visuals() -> void:
 	# This will return empty chunks, like for sky.
@@ -434,7 +439,6 @@ func commit_collision() -> void:
 	if mesh_instance.mesh == null:
 		return
 	collision_shape.shape = mesh_instance.mesh.create_trimesh_shape()
-	#print("Collision committed for: ", name, " shape: ", collision_shape.shape)
 	collision_ready.emit()
 
 # This is to address lag when adding or removing blocks.

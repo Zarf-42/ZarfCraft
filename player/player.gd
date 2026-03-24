@@ -124,6 +124,7 @@ func spawn() -> void:
 	var spawn_chunk = EventBus.chunk_manager.chunks.get(Vector3i(0, 0, 1), null)
 	if spawn_chunk == null:
 		return
+	print("spawn_chunk voxels: ", spawn_chunk.voxels.size())
 		
 	# Find any horizontal location within the chunk, with the -1 helping to stay inside the chunk
 	var random_location_x = randi_range(0, chunk_size - 1)
@@ -170,9 +171,7 @@ func spawn() -> void:
 
 func load_spawn() -> void: # For loading a savegame
 	found_chunk = null
-	#print("load_spawn called, pending_load: ", SaveManager.pending_load)
 	var world_data = SaveManager.load_world()
-	#print("world_data: ", world_data)
 	if world_data.is_empty():
 		print("world_data empty, falling back to spawn()")
 		spawn() # Fall back to the normal spawn function if the world doesn't load correctly

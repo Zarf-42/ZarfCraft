@@ -47,7 +47,6 @@ func save_world(world_name: String) -> void:
 # Saving terrain data
 func save_chunks(world_name: String) -> void:
 	var chunks = EventBus.chunk_manager.chunks
-	var block_types = EventBus.chunk_manager.block_types
 	var terrain_dir = SAVE_DIR + world_name + "/terrain/"
 	var saved_count = 0
 	
@@ -70,7 +69,7 @@ func save_chunks(world_name: String) -> void:
 			if block_type == null:
 				chunk_data[key] = -1 # This means it's been removed
 			else:
-				chunk_data[key] = block_types.find(block_type)
+				chunk_data[key] = BlockRegistry.get_block_index(block_type)
 		chunk.regen_mutex.unlock()
 		
 		# Write chunk to file
@@ -138,12 +137,12 @@ func load_chunk(filepath: String, filename: String) -> void:
 		if block_index == -1:
 			chunk.voxels.erase(voxel_pos) # Block removed
 		else:
-			chunk.voxels[voxel_pos] = EventBus.chunk_manager.block_types[block_index]
+			chunk.voxels[voxel_pos] = BlockRegistry.get_block_by_index(block_index)
 		# Restore dirty voxels, so further saves are correct
 		if block_index == -1:
 			chunk.dirty_voxels[voxel_pos] = null
 		else:
-			chunk.dirty_voxels[voxel_pos] = EventBus.chunk_manager.block_types[block_index]
+			chunk.dirty_voxels[voxel_pos] = BlockRegistry.get_block_by_index(block_index)
 	chunk.regen_mutex.unlock()
 	
 	# Rebuild mesh with loaded voxel data
@@ -152,7 +151,7 @@ func load_chunk(filepath: String, filename: String) -> void:
 
 # This gathers the differences between naturally generated terrain and what the player has done in
 # a chunk (I.E. added or removed blocks, or if liquid has flowed, etc), then loads just those differences.
-func apply_chunk_diffs(chunk: Chunk, block_types: Array[BlockType]) -> void:
+func apply_chunk_diffs(chunk: Chunk) -> void:
 	var chunk_pos = chunk.chunks_key
 	var filename = "%d_%d_%d.json" % [chunk_pos.x, chunk_pos.y, chunk_pos.z]
 	var filepath = SAVE_DIR + pending_load + "/terrain/" + filename
@@ -175,6 +174,6 @@ func apply_chunk_diffs(chunk: Chunk, block_types: Array[BlockType]) -> void:
 			chunk.voxels.erase(voxel_pos)
 			chunk.dirty_voxels[voxel_pos] = null
 		else:
-			chunk.voxels[voxel_pos] = block_types[block_index]
-			chunk.dirty_voxels[voxel_pos] = block_types[block_index]
+			chunk.voxels[voxel_pos] = BlockRegistry.get_block_by_index(block_index)
+			chunk.dirty_voxels[voxel_pos] = BlockRegistry.get_block_by_index(block_index)
 	chunk.regen_mutex.unlock()

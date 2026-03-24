@@ -62,34 +62,33 @@ texture_filter = 0
 script = ExtResource("1_4bqry")
 block = ExtResource("2_hpkcj")
 material = SubResource("StandardMaterial3D_hpkcj")
-refresh = true
 
-[node name="Top" type="MeshInstance3D" parent="." unique_id=1190584082]
+[node name="Top" type="MeshInstance3D" parent="." unique_id=1010275424]
 transform = Transform3D(1, 0, 0, 0, -4.371139e-08, 1, 0, -1, -4.371139e-08, 0, 0.5, 0)
 material_override = SubResource("StandardMaterial3D_hk71f")
 mesh = SubResource("QuadMesh_x3o2o")
 
-[node name="Bottom" type="MeshInstance3D" parent="." unique_id=1605863080]
+[node name="Bottom" type="MeshInstance3D" parent="." unique_id=1977689901]
 transform = Transform3D(1, 0, 0, 0, -4.371139e-08, -1, 0, 1, -4.371139e-08, 0, -0.5, 0)
 material_override = SubResource("StandardMaterial3D_vd34d")
 mesh = SubResource("QuadMesh_43a82")
 
-[node name="Front" type="MeshInstance3D" parent="." unique_id=310486834]
+[node name="Front" type="MeshInstance3D" parent="." unique_id=1480260803]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.5)
 material_override = SubResource("StandardMaterial3D_ag5v7")
 mesh = SubResource("QuadMesh_o0512")
 
-[node name="Back" type="MeshInstance3D" parent="." unique_id=1128358413]
+[node name="Back" type="MeshInstance3D" parent="." unique_id=1314337494]
 transform = Transform3D(-1, 0, -8.742278e-08, 0, 1, 0, 8.742278e-08, 0, -1, 0, 0, -0.5)
 material_override = SubResource("StandardMaterial3D_1dqxb")
 mesh = SubResource("QuadMesh_ixcx1")
 
-[node name="Left" type="MeshInstance3D" parent="." unique_id=1746734792]
+[node name="Left" type="MeshInstance3D" parent="." unique_id=1316763572]
 transform = Transform3D(-4.371139e-08, 0, -1, 0, 1, 0, 1, 0, -4.371139e-08, -0.5, 0, 0)
 material_override = SubResource("StandardMaterial3D_fil60")
 mesh = SubResource("QuadMesh_6cf1c")
 
-[node name="Right" type="MeshInstance3D" parent="." unique_id=122199551]
+[node name="Right" type="MeshInstance3D" parent="." unique_id=729452369]
 transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, 0.5, 0, 0)
 material_override = SubResource("StandardMaterial3D_oale0")
 mesh = SubResource("QuadMesh_rbgoc")

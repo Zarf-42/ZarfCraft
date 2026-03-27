@@ -34,12 +34,10 @@ var found_chunk: Chunk = null # For finding the chunk the player is spawning in
 
 func _ready() -> void:
 	visible = false
-	#player.global_position = Vector3i(0, -1000, 0) # Place the player far below the world until the chunk is ready
 	EventBus.blocks_ready.connect(_on_blocks_ready)
 
 	process_mode = Node.PROCESS_MODE_PAUSABLE
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
-	#player_focus.target_position = Settings.player_reach
 	EventBus.player = self
 
 func _on_blocks_ready(block_types: Array) -> void:
@@ -217,7 +215,6 @@ func load_spawn() -> void: # For loading a savegame
 		print("Waiting for collision after diffs...")
 		await found_chunk.collision_ready
 
-	
 	player.global_position = target_pos
 	print("Player reloaded at ", player.global_position)
 	head.rotation.y = world_data["player_rotation"]["head_y"]

@@ -35,7 +35,6 @@ func preview_block() -> void:
 	if block == null or material == null:
 		return
 
-
 	var atlas: Texture2D = (material as StandardMaterial3D).albedo_texture
 	var atlas_width = atlas.get_size().x
 	var tiles_wide = int(atlas_width / texture_size)
@@ -92,24 +91,3 @@ func preview_block() -> void:
 		preview_material.uv1_scale = Vector3(tile_u, tile_v, 1)
 
 		mesh_instance.material_override = preview_material
-
-		#var preview_material = StandardMaterial3D.new()
-		#preview_material.albedo_texture = atlas
-		#preview_material.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
-#
-		#var atlas_tex = AtlasTexture.new()
-		#atlas_tex.atlas = atlas
-		#atlas_tex.filter_clip = true
-		#atlas_tex.region = Rect2(
-			#face_data["uv"].x * texture_size,
-			#face_data["uv"].y * texture_size,
-		#texture_size,
-		#texture_size)
-		#preview_material.albedo_texture = atlas_tex
-		#
-		#print("Face: ", face_data["label"], " uv: ", face_data["uv"], " region: ", Rect2(
-			#face_data["uv"].x * texture_size,
-			#face_data["uv"].y * texture_size,
-			#texture_size,
-			#texture_size))
-		#mesh_instance.material_override = preview_material

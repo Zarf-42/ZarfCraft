@@ -4,6 +4,7 @@
 [ext_resource type="Texture2D" uid="uid://tjx2w77isjok" path="res://blocks/textures/atlas.png" id="2_eat54"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_a0kup"]
+vertex_color_use_as_albedo = true
 albedo_texture = ExtResource("2_eat54")
 metallic_specular = 0.0
 rim = 0.1
@@ -12,6 +13,7 @@ texture_filter = 0
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_uc5gi"]
 transparency = 1
+vertex_color_use_as_albedo = true
 albedo_texture = ExtResource("2_eat54")
 texture_filter = 0
 

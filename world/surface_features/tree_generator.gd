@@ -29,7 +29,7 @@ static func generate_tree(
 	var tree_top: int = surface_y + trunk_height + leaf_radius + 1
 
 	# Check vertical clearance
-	print("Trying tree at ", world_x, ",", world_z, " surface_y=", surface_y, " trunk_height=", trunk_height)
+	#print("Trying tree at ", world_x, ",", world_z, " surface_y=", surface_y, " trunk_height=", trunk_height)
 	for y in range(surface_y, tree_top + 1):
 		var local_y: int = y - int(chunk_pos.y)
 		if local_y >= 0 and local_y < chunk_height:

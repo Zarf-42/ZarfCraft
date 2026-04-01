@@ -26,9 +26,6 @@ var voxels: Dictionary[Vector3i, BlockType] = {}
 var dirty_voxels: Dictionary = {}
 var number_of_textures_in_atlas: Vector2 = Vector2.ZERO
 
-# For overhanging blocks from other chunks, like tree leaves
-var blocks_from_adjacent_chunks: Dictionary = {}
-
 # Where should we store the world's seed, exactly? Maybe in world.tscn?
 var world_seed: int = 0
 
@@ -47,6 +44,7 @@ var transparent_uvs = PackedVector2Array()
 # Stores the altitude of the first air block above the surface of each column.
 # Can be used for spawning things like trees and structures without having to calculate each time.
 var heightmap: Array = []
+var has_been_committed: bool = false
 
 # Adding keys to each chunk so it can be referenced by filename
 var chunks_key: Vector3i = Vector3i.ZERO
@@ -141,6 +139,12 @@ func get_bedrock_height(global_pos: Vector3, heightmap_noise: Noise) -> int:
 # This function determines the position of each block in a given chunk. I believe this is where we
 # need to record the location of each block, perhaps in a dictionary?
 func generate_data(chunk_size: int, chunk_height: int, heightmap_noise: Noise, big_cave_noise: Noise, long_cave_noise: Noise)  -> void:
+	# Apply any cross-chunk structure blocks registered for this chunk
+	var ccs_blocks: Array = EventBus.chunk_manager.claim_ccs(chunks_key)
+	for entry in ccs_blocks:
+		voxels[entry["world_pos"] - Vector3i(int(position.x), int(position.y), int(position.z))] = entry["block"]
+		#voxels[entry.world_pos - Vector3i(position)] = entry.block
+	
 	# Define block types you'll need to refer to by name. Set them to 0 just in case something gets
 	# messed up, then look for them by value.
 	#var blocks = get_block_types(block_types)
@@ -275,17 +279,15 @@ func generate_data(chunk_size: int, chunk_height: int, heightmap_noise: Noise, b
 
 			# Sort blocks into local (this chunk) and adjacent (neighboring chunks)
 			for world_pos: Vector3i in tree_blocks:
-				var local_pos: Vector3i = world_pos - Vector3i(position)
+				var local_pos: Vector3i = world_pos - Vector3i(int(position.x), int(position.y), int(position.z))
 				if local_pos.x >= 0 and local_pos.x < chunk_size and \
 						local_pos.y >= 0 and local_pos.y < chunk_height and \
 						local_pos.z >= 0 and local_pos.z < chunk_size:
-					if tree_blocks[world_pos] == BlockRegistry.get_block("oak log") or \
-						tree_blocks[world_pos] == BlockRegistry.get_block("birch log"):
-						print("Placing log at world pos ", world_pos)
 					voxels[local_pos] = tree_blocks[world_pos]
 				else:
-					blocks_from_adjacent_chunks[world_pos] = tree_blocks[world_pos]
- 
+					#print("Sending to CCS: world_pos=", world_pos, " chunk position=", position)
+					EventBus.chunk_manager.register_ccs(world_pos, tree_blocks[world_pos])
+			 
 func generate_mesh() -> void:
 	if voxels.is_empty(): return
 	var start_time = Time.get_ticks_usec()
@@ -393,15 +395,12 @@ func commit_mesh() -> void:
 		EventBus.spawn_chunk_is_ready.emit()
 	
 func commit_visuals() -> void:
-	# This will return empty chunks, like for sky.
-	if vertices.is_empty() and transparent_vertices.is_empty():
-		return
-	# This is to try to keep the game from crashing when switching transparency modes while generating chunks.
 	if mesh_instance == null:
 		return
+	if vertices.is_empty() and transparent_vertices.is_empty():
+		mesh_instance.mesh = null
+		return
 	var start = Time.get_ticks_msec()
-	# Commit Visuals seperately so we can do this relatively inexpensive operation more often than
-	# the expensive operating of committing Collision.
 	var new_mesh = ArrayMesh.new()
 	
 	if not vertices.is_empty():
@@ -428,9 +427,12 @@ func commit_visuals() -> void:
 		print("Commit Visuals: %s ms" % (Time.get_ticks_msec() - start))
 
 func commit_collision() -> void:
-	# This will return empty chunks, like for sky.
 	if mesh_instance.mesh == null:
+		if has_been_committed:
+			collision_shape.shape = null
+			collision_ready.emit()
 		return
+	has_been_committed = true
 	collision_shape.shape = mesh_instance.mesh.create_trimesh_shape()
 	collision_ready.emit()
 
@@ -443,8 +445,10 @@ func threaded_rebuild() -> void:
 	if regen_thread.is_started(): # Old threads that this routine starts might hang around. This
 		# cleans them up.
 		regen_thread.wait_to_finish()
+	var cached_position = position  # Cache before entering thread
 	regen_thread = Thread.new()
 	regen_thread.start(func():
+		print("threaded_rebuild running on chunk at ", cached_position)
 		regen_mutex.lock() # Lock this mutex, then clear vertices, normals, and uvs
 		vertices.clear()
 		normals.clear()
@@ -480,7 +484,8 @@ func schedule_collision_rebuild() -> void:
 	)
 
 func finish_rebuild() -> void:
-	regen_thread.wait_to_finish()
+	if regen_thread.is_started():
+		regen_thread.wait_to_finish()
 	is_rebuilding = false
 
 func _exit_tree() -> void:

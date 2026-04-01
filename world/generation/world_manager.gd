@@ -12,8 +12,8 @@ class_name ChunkManager extends Node
 	# this is an array that contains every block type in the game. Filled in the Godot Editor.
 
 # For overhanging blocks from neighboring chunks, like leaves
-var blocks_from_adjacent_chunks: Dictionary = {}  # Vector3i world pos -> BlockType
-var adjacent_blocks_applied: bool = false
+#var blocks_from_adjacent_chunks: Dictionary = {}  # Vector3i world pos -> BlockType
+#var adjacent_blocks_applied: bool = false
 
 var render_distance = Settings.chunk_render_distance
 var altitude_generator = FastNoiseLite.new() # Surface height noise
@@ -38,6 +38,10 @@ var stat_chunks_reported: int = 0
 
 var world_seed: int = 0
 var atlas_tiles: Vector2 = Vector2.ZERO
+
+# For Cross-Chunk structures like trees and caves
+var pending_structures: Dictionary = {}  # Vector3i chunk_key -> Array of {world_pos, block}
+var pending_structures_mutex: Mutex = Mutex.new()
 
 var loading_threads: Array = Settings.threads
 
@@ -74,12 +78,10 @@ func _process(_delta: float) -> void:
 		if chunk.position == Vector3(0.0, Settings.chunk_height, 0.0) and Settings.player_is_spawned == false:
 			EventBus.spawn_chunk_is_ready.emit()
 	
-	if not adjacent_blocks_applied and \
-			stat_chunks_reported >= stat_chunks_expected and \
-			chunk_visual_queue.is_empty() and \
-			chunk_collision_queue.is_empty():
-		adjacent_blocks_applied = true
-		apply_blocks_from_adjacent_chunks()
+	if not pending_structures.is_empty() and \
+		chunk_visual_queue.is_empty() and \
+		chunk_collision_queue.is_empty():
+			apply_late_ccs()
 
 func _ready() -> void:
 	BlockRegistry.register(block_types)
@@ -144,8 +146,23 @@ func generate_terrain_infinite() -> Array:
 	for i in range(num_threads):
 		chunk_coordinates.append([])
 	
-	for i in range(chunk_queue.size()):
-		chunk_coordinates[i % num_threads].append(chunk_queue[i])    
+	# Group chunks by XY column first, then distribute columns across threads
+	var columns: Dictionary = {}
+	for chunk in chunk_queue:
+		var col_key: Vector2i = Vector2i(chunk.x, chunk.y)
+		if not columns.has(col_key):
+			columns[col_key] = []
+		columns[col_key].append(chunk)
+
+	# Sort each column bottom to top
+	for col_key in columns:
+		columns[col_key].sort_custom(func(a, b): return a.z < b.z)
+
+	# Distribute whole columns across threads
+	var col_index: int = 0
+	for col_key in columns:
+		chunk_coordinates[col_index % num_threads].append_array(columns[col_key])
+		col_index += 1    
 	return chunk_coordinates
 
 # 3/28.26: Re-wrote this method to be able to do an arbitrary number of layers. Used to be limited to
@@ -183,56 +200,32 @@ func generate_chunks(pos) -> void:
 		new_chunk.generate_mesh()
 		report_stats.call_deferred(new_chunk.stat_generate_mesh_us, new_chunk.stat_add_face_us, new_chunk.stat_add_face_count)
 		
-		# Collect any tree blocks destined for neighboring chunks
-		if not new_chunk.blocks_from_adjacent_chunks.is_empty():
-			register_blocks_from_adjacent_chunks.call_deferred(new_chunk.blocks_from_adjacent_chunks)
-			new_chunk.blocks_from_adjacent_chunks.clear()
-		
 		new_chunk.was_generated_by_thread = true
 		new_chunk.name = str((new_chunk.position as Vector3i) / Vector3i(chunk_size, chunk_height, chunk_size))
 		chunks[chunk] = new_chunk
 		call_deferred("add_child", new_chunk)
 		call_deferred("add_to_commit_queue", new_chunk)
 
-func register_blocks_from_adjacent_chunks(blocks: Dictionary) -> void:
-	for world_pos: Vector3i in blocks:
-		blocks_from_adjacent_chunks[world_pos] = blocks[world_pos]
+func register_ccs(world_pos: Vector3i, block: BlockType) -> void:
+	var chunk_x: int = int(floor(float(world_pos.x) / Settings.chunk_size))
+	var chunk_y: int = int(floor(float(world_pos.z) / Settings.chunk_size))
+	var chunk_layer: int = int(floor(float(world_pos.y) / Settings.chunk_height))
+	var chunk_key: Vector3i = Vector3i(chunk_x, chunk_y, chunk_layer)
+	#print("Registering CCS at world_pos ", world_pos, " -> chunk_key ", chunk_key)
 
-func apply_blocks_from_adjacent_chunks() -> void:
-	print("Adjacent blocks")
-	if blocks_from_adjacent_chunks.is_empty():
-		return
+	pending_structures_mutex.lock()
+	if not pending_structures.has(chunk_key):
+		pending_structures[chunk_key] = []
+	pending_structures[chunk_key].append({"world_pos": world_pos, "block": block})
+	pending_structures_mutex.unlock()
 
-	var chunks_to_rebuild: Dictionary = {}
-
-	for world_pos: Vector3i in blocks_from_adjacent_chunks:
-		var block: BlockType = blocks_from_adjacent_chunks[world_pos]
-
-		# Find which chunk owns this world position
-		var chunk_x: int = int(floor(float(world_pos.x) / Settings.chunk_size))
-		var chunk_z: int = int(floor(float(world_pos.z) / Settings.chunk_size))
-		var chunk_layer: int = int(floor(float(world_pos.y) / Settings.chunk_height))
-		var chunk_key: Vector3i = Vector3i(chunk_x, chunk_layer, chunk_z)
-		print("Adjacent block at ", world_pos, " -> chunk_key ", chunk_key, " chunk exists: ", chunks.has(chunk_key))
-
-		var target_chunk: Chunk = chunks.get(chunk_key, null)
-		if target_chunk == null:
-			continue
-
-		# Convert world pos to local chunk pos
-		var local_pos: Vector3i = Vector3i(
-			world_pos.x - chunk_x * Settings.chunk_size,
-			world_pos.y - chunk_layer * Settings.chunk_height,
-			world_pos.z - chunk_z * Settings.chunk_size)
-
-		target_chunk.voxels[local_pos] = block
-		chunks_to_rebuild[chunk_key] = target_chunk
-
-	# Rebuild meshes for all affected chunks
-	for chunk_key: Vector3i in chunks_to_rebuild:
-		chunks_to_rebuild[chunk_key].request_rebuild()
-
-	blocks_from_adjacent_chunks.clear()
+func claim_ccs(chunk_key: Vector3i) -> Array:
+	pending_structures_mutex.lock()
+	var result: Array = pending_structures.get(chunk_key, [])
+	pending_structures.erase(chunk_key)
+	pending_structures_mutex.unlock()
+	#print("Claiming CCS for chunk_key ", chunk_key, " found ", result.size(), " entries")
+	return result
 
 func add_to_commit_queue(chunk: Chunk) -> void:
 	chunk_visual_queue.append(chunk)
@@ -254,6 +247,29 @@ func multithreaded_terrain_generation(chunks_by_thread, _number_of_threads) -> v
 		if i < loading_threads.size() and not chunks_by_thread[i].is_empty():
 			loading_threads[i].start(func(): generate_chunks(chunks_by_thread[i]))
 
+func apply_late_ccs() -> void:
+	pending_structures_mutex.lock()
+	var leftover: Dictionary = pending_structures.duplicate()
+	pending_structures.clear()
+	pending_structures_mutex.unlock()
+	
+	var chunks_to_rebuild: Array = []
+	for chunk_key in leftover:
+		var target_chunk: Chunk = chunks.get(chunk_key, null)
+		if target_chunk == null:
+			continue
+		for entry in leftover[chunk_key]:
+			var local_pos: Vector3i = entry["world_pos"] - Vector3i(
+				int(target_chunk.position.x),
+				int(target_chunk.position.y),
+				int(target_chunk.position.z))
+			target_chunk.voxels[local_pos] = entry["block"]
+		chunks_to_rebuild.append(target_chunk)
+	
+	for target_chunk in chunks_to_rebuild:
+		target_chunk.request_rebuild()
+		target_chunk.threaded_rebuild()
+
 # This ensures voxels get added to the correct chunk. If chunk size is 32x32 and player adds one at
 # 33, it'll add the block to the neighboring chunk.
 func get_target_chunk(world_position: Vector3i, current_chunk: Chunk) -> Dictionary:
@@ -269,7 +285,7 @@ func get_target_chunk(world_position: Vector3i, current_chunk: Chunk) -> Diction
 	var correct_chunk_x: int = int(floor(float(world_position.x) / Settings.chunk_size))
 	var correct_chunk_z: int = int(floor(float(world_position.z) / Settings.chunk_size))
 	var correct_chunk_layer: int = int(floor(float(world_position.y) / Settings.chunk_height))
-	var correct_chunk_key: Vector3i = Vector3i(correct_chunk_x, correct_chunk_z, 0)
+	var correct_chunk_key: Vector3i = Vector3i(correct_chunk_x, correct_chunk_z, correct_chunk_layer)
 	var correct_chunk: Chunk = chunks.get(correct_chunk_key, null)
 	if correct_chunk == null:
 		return {} # This may help if we ever have constrained-sized worlds.
@@ -316,17 +332,32 @@ func _on_remove_block(_pos: Vector3i) -> void:
 		print("No chunk collider found")
 		return
 		
-	var local_pos = player_focus.get_ray_hit().remove_position - Vector3i(chunk.global_position)
+	#var local_pos = player_focus.get_ray_hit().remove_position - Vector3i(chunk.global_position)
+	var world_position: Vector3i = player_focus.get_ray_hit().remove_position
+	var target = get_target_chunk(world_position, chunk)
+	if target.is_empty():
+		print("get_target_chunk returned empty")
+		return
 	
+	var correct_chunk = target["chunk"]
+	var correct_local_pos = target["local_pos"]
 	
-	if chunk.voxels.has(local_pos):
-		chunk.regen_mutex.lock()
-		chunk.voxels.erase(local_pos)
+	if correct_chunk.voxels.has(correct_local_pos):
+		correct_chunk.regen_mutex.lock()
+		correct_chunk.voxels.erase(correct_local_pos)
 		# Dirty voxels are used to creat diffs between what's naturally generated and what the player did.
-		chunk.dirty_voxels[local_pos] = null
-		chunk.regen_mutex.unlock()
-		chunk.player_initiated_rebuild = true
-		chunk.threaded_rebuild()
+		correct_chunk.dirty_voxels[correct_local_pos] = null
+		correct_chunk.regen_mutex.unlock()
+		print("After erase, voxels.has: ", correct_chunk.voxels.has(correct_local_pos))
+		correct_chunk.player_initiated_rebuild = true
+		
+		# If the block was in a different chunk than the one we raycast against,
+		# rebuild the original chunk too so its mesh reflects the change
+		if correct_chunk != chunk:
+			chunk.player_initiated_rebuild = true
+			chunk.threaded_rebuild()
+		
+		correct_chunk.threaded_rebuild()
 
 func remove_chunk(chunk_position: Vector3i) -> void:
 	if !chunks.has(chunk_position): return

@@ -46,10 +46,24 @@ func get_target(_collision_point):
 	# I had this && here for a reason but I don't know what. Commenting out the second part seems to work.
 	#if player_focus.get_collider() != null:# && collision_point:
 		var block_normal = Vector3i(player_focus.get_collision_normal())
+		var face_direction = ""
+		if block_normal == Vector3i(0, 0, 1):
+			face_direction = "Front"
+		elif block_normal == Vector3i(0, 0, -1):
+			face_direction = "Back"
+		elif block_normal == Vector3i(-1, 0, 0):
+			face_direction = "Left"
+		elif block_normal == Vector3i(1, 0, 0):
+			face_direction = "Right"
+		elif block_normal == Vector3i(0, -1, 0):
+			face_direction = "Bottom"
+		elif block_normal == Vector3i(0, 1, 0):
+			face_direction = "Top"
+			
 		# We set cursor as a Vector3i to eliminate some rounding errors. Not sure it helps.
 		var cursor = Vector3i(player_focus.get_collision_point())
 		#print(cursor)
-		block_normal_label.text = "Normal: %s" % [block_normal]
+		block_normal_label.text = "Normal: %s Direction: %s" % [block_normal, face_direction]
 		# Normals are positive or negative. Positive means the first direction below, negative means
 		# the second. So 0, 0, -1 would be the south face of a cube.
 		# East/-West, Top/-Bottom, North/-South

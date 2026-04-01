@@ -6,7 +6,7 @@ extends StaticBody3D
 
 # Following https://www.youtube.com/watch?v=Pfqfr3zFyKI
 
-
+@export var tree_types: Array[TreeType]
 @export var material: Material
 
 # Transparent materials need their own mesh, partially because we have the Debug Rendering option that
@@ -17,26 +17,36 @@ extends StaticBody3D
 @onready var mesh_instance: MeshInstance3D = $TerrainMesh
 
 var voxels: Dictionary[Vector3i, BlockType] = {}
+
 # Dirty voxels are, as opposed to naturally generated voxels, ones that the player has added or removed.
 # They will also include things like liquids that have flowed into neighboring blocks.
 # We are keeping track of these and only saving them, so we don't have to save every voxel in a chunk.
 # If we implement quarries, those chunks are going to have large save files, but everything else
 # should be way smaller. We might be able to use some compression to shrink mostly empty chunks.
-
-
 var dirty_voxels: Dictionary = {}
 var number_of_textures_in_atlas: Vector2 = Vector2.ZERO
+
+# For overhanging blocks from other chunks, like tree leaves
+var blocks_from_adjacent_chunks: Dictionary = {}
+
+# Where should we store the world's seed, exactly? Maybe in world.tscn?
+var world_seed: int = 0
 
 #var surface_array: Array = []
 var vertices = PackedVector3Array()
 var normals = PackedVector3Array()
 var uvs = PackedVector2Array()
+var uv2s: PackedVector2Array = PackedVector2Array()
 
 # Transparent geometry, such as for leaves, water, glass, etc.
 # Apparently you need multiple meshes if some of your textures have transparencies.
 var transparent_vertices = PackedVector3Array()
 var transparent_normals = PackedVector3Array()
 var transparent_uvs = PackedVector2Array()
+
+# Stores the altitude of the first air block above the surface of each column.
+# Can be used for spawning things like trees and structures without having to calculate each time.
+var heightmap: Array = []
 
 # Adding keys to each chunk so it can be referenced by filename
 var chunks_key: Vector3i = Vector3i.ZERO
@@ -70,109 +80,27 @@ var player_initiated_rebuild: bool = false
 # each time the user changes a block.
 var commit_collision_timer: SceneTreeTimer = null
 
-# For precomputing UVs. Look in _init for the precomp code.
-var face_vertex_uvs: Dictionary = {}
-
 # For fixing freeze caused by all chunks being generated on the main thread
 var was_generated_by_thread: bool = false
+# Timing results, read by ChunkManager after generate_mesh() returns
+var stat_generate_mesh_us: int = 0
+var stat_add_face_us: int = 0
+var stat_add_face_count: int = 0
 
 signal collision_ready
-
-# These are the vertice coordinates. The cube's center is at 0,0,0. The cube is 1 unit long, 
-# so each vertice is 0.5 units out from the center. X is left/right, Y is vertical, Z is depth.
-const cube_vertices: Array[Vector3] = [
-	Vector3(0, 0, 1), # 0, Bottom Left Front
-	Vector3(1, 0, 1), # 1, Bottom Right Front
-	Vector3(1, 0, 0), # 2, Bottom Right Back
-	Vector3(0, 0, 0), # 3, Bottom Left Back
-	Vector3(0, 1, 1), # 4,  Top Left Front
-	Vector3(1, 1, 1), # 5, Top Right Front
-	Vector3(1, 1, 0), # 6, Top Right Back
-	Vector3(0, 1, 0) # 7, Top Left Back
-]
-
-# Allows us to add data "per face" according to the video. This is so we don't
-# have to say "Face.1" and stuff; we refer to Face.BOTTOM and the others in face_indices, _normals,
-# and the _colors dictionaries. We also refer to them in the generate_mesh() function.
-enum Face{BOTTOM, FRONT, RIGHT, TOP, LEFT, BACK}
-
-# Using the Vertice Numbers in cube_vertices, decide which face consists of which vertices.
-# The order each vertice is listed in matters. Godot uses Clockwise Winding, so whatever
-# vertice we start on, we need to go clockwise to get to the next one.
-const face_indices: Dictionary[Face, Array] = {
-	Face.FRONT: [[0, 4, 5],[0, 5, 1]], #Checked 12/27/25
-	Face.BACK: [[2, 7, 3],[2, 6, 7]], #Checked 12/27/25
-	Face.LEFT: [[3, 7, 4],[3, 4, 0]], #Checked 12/27/25
-	Face.RIGHT: [[1, 5, 6],[1, 6, 2]], #Checked 12/27/25
-	Face.BOTTOM: [[0, 1, 2],[0, 2, 3]], #Checked 12/27/25
-	Face.TOP: [[4, 7, 6],[4, 6, 5]] #Checked 12/27/25
-}
-
-# Normals determine what direction each face is pointing. Faces pointing away from you
-# don't get drawn.
-const face_normals: Dictionary[Face, Vector3] = {
-	Face.FRONT: Vector3(0, 0, 1),
-	Face.BACK: Vector3(0, 0, -1),
-	Face.LEFT: Vector3(-1, 0, 0),
-	Face.RIGHT: Vector3(1, 0, 0),
-	Face.BOTTOM: Vector3(0, -1, 0),
-	Face.TOP: Vector3(0, 1, 0)
-}
 
 func _process(_delta: float) -> void:
 	if needs_rebuild and not is_rebuilding:
 		needs_rebuild = false
 		threaded_rebuild()
 
-func _init() -> void:
-	# Precompute UVs. This helps speed up add_face, thereby speeding up chunk generation.
-	for face in Face.values():
-		face_vertex_uvs[face] = []
-		for i in range(8): # since we have 8 faces
-			var v = cube_vertices[i]
-			var uv: Vector2
-			match face:
-				Face.FRONT: uv = Vector2(v.x, 1.0 - v.y)
-				Face.BACK: uv = Vector2(1.0 - v.x, 1.0 - v.y)
-				Face.LEFT: uv = Vector2(v.z, 1.0 - v.y)
-				Face.RIGHT: uv = Vector2(1.0 - v.z, 1.0 - v.y)
-				Face.TOP: uv = Vector2(v.x, v.z)
-				Face.BOTTOM: uv = Vector2(v.x, 1.0 - v.z)
-			face_vertex_uvs[face].append(uv)
-			
 func _ready() -> void:
 	# Skip this chunk if it's empty or was generated by worldgen already
 	if voxels.is_empty():
 		return
 	if was_generated_by_thread:
 		return
-	
 	commit_mesh()
-
-#func get_block_types(block_types: Array[BlockType]) -> Dictionary:
-	#var result = {
-		#"default": block_types[0],
-		#"bedrock": block_types[0],
-		#"grass": block_types[0],
-		#"dirt": block_types[0],
-		#"oak leaves": block_types[0],
-		#"oak log": block_types[0]
-	#}
-
-	#for block in block_types:
-		#if block.block_name == Settings.default_block:
-			#result["default"] = block
-		#if block.block_name == "Bedrock":
-			#result["bedrock"] = block
-		#if block.block_name == "Grass":
-			#result["grass"] = block
-		#if block.block_name == "Dirt":
-			#result["dirt"] = block
-		#if block.block_name == "Oak Leaves":
-			#result["oak leaves"] = block
-		#if block.block_name == "Oak Log":
-			#result["oak log"] = block
-	#return result
 
 func carve_caves(global_pos: Vector3, world_y: float, big_cave_noise: Noise, long_cave_noise: Noise, surface_factor: float) -> bool:
 	# We currently have two types of cave systems: Big caves and Long caves. Big caves tend to be large open areas, long caves
@@ -212,7 +140,7 @@ func get_bedrock_height(global_pos: Vector3, heightmap_noise: Noise) -> int:
 
 # This function determines the position of each block in a given chunk. I believe this is where we
 # need to record the location of each block, perhaps in a dictionary?
-func generate_data(chunk_size: int, max_height: int, heightmap_noise: Noise, big_cave_noise: Noise, long_cave_noise: Noise)  -> void:
+func generate_data(chunk_size: int, chunk_height: int, heightmap_noise: Noise, big_cave_noise: Noise, long_cave_noise: Noise)  -> void:
 	# Define block types you'll need to refer to by name. Set them to 0 just in case something gets
 	# messed up, then look for them by value.
 	#var blocks = get_block_types(block_types)
@@ -225,118 +153,174 @@ func generate_data(chunk_size: int, max_height: int, heightmap_noise: Noise, big
 		print("WARNING: missing block types, skipping generation")
 		return
 
-	# Establish which layer we're working in
-	var vertical_layer = int(round(position.y / max_height))
-	
-	# Different terrain generation methods for different layers.
-	match vertical_layer:
-		0: generate_underground_layer(chunk_size, max_height, heightmap_noise, big_cave_noise, long_cave_noise, bedrock, default_block)
-		1: generate_surface_layer(chunk_size, max_height, heightmap_noise, big_cave_noise, long_cave_noise, bedrock, grass, dirt, default_block)
-		_: pass  # Layer is just air for now, so we have nothing to generate. We'll have to cahnge this when we implement mountain biomes.
-		
-# Layer 0: Underground, caves, bedrock
-func generate_underground_layer(chunk_size: int, max_height: int, heightmap_noise: Noise,
-	big_cave_noise: Noise, long_cave_noise: Noise, bedrock: BlockType,
-	default_block: BlockType) -> void:
-		
 	for x in range(chunk_size):
 		for z in range(chunk_size):
-			var global_pos = Vector3(transform.origin) + Vector3(x, 0, z)
-			for y in range(max_height):
-				var block_to_place: BlockType
-				if y == 0: block_to_place = bedrock
-				elif y <= get_bedrock_height(global_pos, heightmap_noise): block_to_place = bedrock
-				else: block_to_place = default_block
-					
-				# Layer 0's caves
-				if block_to_place != bedrock:
-					if carve_caves(global_pos, y + position.y, big_cave_noise, long_cave_noise, 1.0):
-						continue
-				voxels[Vector3i(x, y, z)] = block_to_place
+			# Global XZ of this column
+			var global_pos_x: float = position.x + x # Needs to be a float because we use float math for the noise below.
+			var global_pos_z: float = position.z + z
 	
-# Layer 1: Surface Terrain and Caves
-func generate_surface_layer(chunk_size: int, max_height: int, heightmap_noise: Noise,
-	big_cave_noise: Noise, long_cave_noise: Noise, bedrock: BlockType, grass: BlockType,
-	dirt: BlockType, default_block: BlockType) -> void:
-		
-	for x in range(chunk_size):
-		for z in range(chunk_size):
-			var global_pos = Vector3(transform.origin) + Vector3(x, 0, z)
-
 			# This is the formula we use to generate the shape of our terrain. The three
 			# get_noise_2ds act as 3 different octaves; the first generates large hills and valleys,
 			# the second adds medium details, and the third adds fine detail.
 			# The stuff on the ends of the lines ( +0.5, +0.25, etc) determine the steepness of these details.
-			var rand = ((
-				heightmap_noise.get_noise_2d(global_pos.x, global_pos.z) + 0.6 * 
-				heightmap_noise.get_noise_2d(global_pos.x * 2, global_pos.z * 2) + 0.25 * 
-				heightmap_noise.get_noise_2d(global_pos.x * 4, global_pos.z * 4)) / 1.75 + 1) / 2
-			var rand_p = pow(rand, 2.1)
-			# We need to offset by position.y so terrain is generated within the current layer.
-			var height = int(max_height * rand_p) + int(position.y)
-
-			if height < position.y: continue
-
-			var local_height = int(height - position.y)
+			var rand: float = ((
+				heightmap_noise.get_noise_2d(global_pos_x, global_pos_z) + 0.6 * 
+				heightmap_noise.get_noise_2d(global_pos_x * 2, global_pos_z * 2) + 0.25 * 
+				heightmap_noise.get_noise_2d(global_pos_x * 4, global_pos_z * 4)
+				) / 1.75)
 			
-			# Dirt layer is 3-6 blocks below the surface
-			var dirt_depth = int(heightmap_noise.get_noise_2d(global_pos.x * 0.3, global_pos.z * 0.3) * 1.5) + 4
+			const sea_level = Settings.sea_level
+			const terrain_amplitude: int = 24
 			
-			for y in range(min(local_height, max_height)):
-				var block_to_place: BlockType
-					
-				# Surface layer, always grass
-				if y == local_height - 1: # This gets the top of the current XZ "column"
+			# This is the surface height of this column.
+			var surface_height: int = sea_level + int(rand * terrain_amplitude)
+			
+			# Dirt depth for this column
+			var dirt_depth: int = int(
+				heightmap_noise.get_noise_2d(
+					global_pos_x * 0.3,
+					global_pos_z * 0.3
+					) * 1.5)
+			
+			# Bedrock depth for this column
+			var bedrock_height: int = int((
+					heightmap_noise.get_noise_2d(
+					global_pos_x * 0.5,
+					global_pos_z * 0.5
+					) + 1 ) / 2.3) + 1
+			
+			for y in range(chunk_height):
+				var world_y: int = int(position.y) + y
+			
+				# Air, skip
+				if world_y >= surface_height:
+					continue # This might mess up trees and structures?
+				
+				var block_to_place = BlockType
+				
+				if world_y <= bedrock_height: # Bedrock layer
+					block_to_place = bedrock
+				elif world_y == surface_height - 1: # Surface block
 					block_to_place = grass
-				
-				# Subsurface dirt layer, thickness varies
-				elif y >= local_height - dirt_depth:
+				elif world_y >= surface_height - dirt_depth: # Dirt layer
 					block_to_place = dirt
-				else:
-					block_to_place = default_block
+				else: block_to_place = default_block # Everything else is stone
 				
-				# Cave generation
+				# Handling Caves; skip bedrock
 				if block_to_place != bedrock:
-					var surface_factor = clamp(float(local_height - y) / cave_surface_margin, 0.2, 1.0)
-					if carve_caves(global_pos, y + position.y, big_cave_noise, long_cave_noise, surface_factor):
+					var surface_factor: float = clamp(
+						float(surface_height - world_y) / cave_surface_margin,
+						0.2, 1.0)
+					if carve_caves(Vector3(global_pos_x, world_y, global_pos_z),
+					world_y, big_cave_noise, long_cave_noise, surface_factor):
 						continue
 						
 				voxels[Vector3i(x, y, z)] = block_to_place
+				
+	# Build heightmap after all voxels are placed
+	heightmap.resize(chunk_size)
+	for x in range(chunk_size):
+		heightmap[x] = []
+		heightmap[x].resize(chunk_size)
+		for z in range(chunk_size):
+			heightmap[x][z] = -1
+			for y in range(chunk_height - 1, -1, -1):
+				if voxels.has(Vector3i(x, y, z)):
+					# Store global Y of the air block above this surface block
+					heightmap[x][z] = int(position.y) + y + 1
+					break
+	
+	
+	# Tree generation pass — runs after heightmap is built
+	for x in range(chunk_size):
+		for z in range(chunk_size):
+			var surface_y: int = heightmap[x][z]
+			if surface_y == -1:
+				continue
+
+			# Only place trees on grass blocks
+			var surface_block_pos: Vector3i = Vector3i(x, surface_y - 1 - int(position.y), z)
+			if not voxels.has(surface_block_pos):
+				continue
+			if voxels[surface_block_pos] != BlockRegistry.get_block("grass"):
+				continue
+
+			var world_x: int = int(position.x) + x
+			var world_z: int = int(position.z) + z
+
+			if not TreeGenerator.should_place_tree(world_x, world_z, world_seed):
+				continue
+
+			# Pick species using weighted selection across all registered tree types
+			var total_weight: int = 0
+			for t in tree_types:
+				total_weight += t.spawn_weight
+
+			var species_hash: int = abs(hash(Vector3i(world_x, world_seed + 1, world_z)))
+			var roll: int = species_hash % total_weight
+			var chosen: TreeType = tree_types[0]
+			var cumulative: int = 0
+			for t in tree_types:
+				cumulative += t.spawn_weight
+				if roll < cumulative:
+					chosen = t
+					break
+
+			var tree_blocks: Dictionary = TreeGenerator.generate_tree(
+				chosen, surface_y, world_x, world_z,
+				voxels, position, chunk_size, chunk_height)
+
+			if tree_blocks.is_empty():
+				continue
+
+			# Sort blocks into local (this chunk) and adjacent (neighboring chunks)
+			for world_pos: Vector3i in tree_blocks:
+				var local_pos: Vector3i = world_pos - Vector3i(position)
+				if local_pos.x >= 0 and local_pos.x < chunk_size and \
+						local_pos.y >= 0 and local_pos.y < chunk_height and \
+						local_pos.z >= 0 and local_pos.z < chunk_size:
+					if tree_blocks[world_pos] == BlockRegistry.get_block("oak log") or \
+						tree_blocks[world_pos] == BlockRegistry.get_block("birch log"):
+						print("Placing log at world pos ", world_pos)
+					voxels[local_pos] = tree_blocks[world_pos]
+				else:
+					blocks_from_adjacent_chunks[world_pos] = tree_blocks[world_pos]
  
 func generate_mesh() -> void:
 	if voxels.is_empty(): return
-	var start_time = Time.get_ticks_msec()
+	var start_time = Time.get_ticks_usec()
+	var local_add_face_count: int = 0
+	var local_add_face_total: int = 0
 	
-	var atlas: Texture2D = self.material.albedo_texture
-	var atlas_size: float = atlas.get_size()[0]
-	number_of_textures_in_atlas = Vector2((atlas_size / Settings.texture_size), 1)
+	# Opaque blocks use the GreedyMesh class
+	GreedyMesh.mesh(voxels, vertices, normals, uvs, uv2s, number_of_textures_in_atlas)
 	
-	var t2 = Time.get_ticks_msec()
-	if benchmarking == true:
-		if t2-start_time > 0:
-			print("Atlas lookup: ", t2-start_time, "ms")
-		pass
-	
-	var t3 = Time.get_ticks_msec()
+	# Transparent blocks still use per-face for now.
+	var t3 = Time.get_ticks_usec()
 	for pos in voxels:
 		var block_type = voxels[pos]
+		if not block_type.is_transparent:
+			continue
 		if not should_hide_face(pos, Vector3i(pos.x, pos.y, pos.z + 1), block_type):
-			add_face(Face.FRONT, pos, block_type)
+			add_face(Cube.Face.FRONT, pos, block_type)
 		if not should_hide_face(pos, Vector3i(pos.x, pos.y, pos.z - 1), block_type):
-			add_face(Face.BACK, pos, block_type)
+			add_face(Cube.Face.BACK, pos, block_type)
 		if not should_hide_face(pos, Vector3i(pos.x - 1, pos.y, pos.z), block_type):
-			add_face(Face.LEFT, pos, block_type)
+			add_face(Cube.Face.LEFT, pos, block_type)
 		if not should_hide_face(pos, Vector3i(pos.x + 1, pos.y, pos.z), block_type):
-			add_face(Face.RIGHT, pos, block_type)
+			add_face(Cube.Face.RIGHT, pos, block_type)
 		if not should_hide_face(pos, Vector3i(pos.x, pos.y + 1, pos.z), block_type):
-			add_face(Face.TOP, pos, block_type)
+			add_face(Cube.Face.TOP, pos, block_type)
 		if not should_hide_face(pos, Vector3i(pos.x, pos.y - 1, pos.z), block_type):
-			add_face(Face.BOTTOM, pos, block_type)
+			add_face(Cube.Face.BOTTOM, pos, block_type)
 		
-	var t4 = Time.get_ticks_msec()
+	var t4 = Time.get_ticks_usec()
 	if benchmarking == true:
 		print("Voxel face creation: ", t4-t3, "ms")
 		face_time = 0
+	stat_generate_mesh_us = Time.get_ticks_usec() - start_time
+	stat_add_face_us = local_add_face_total
+	stat_add_face_count = local_add_face_count
 
 func should_hide_face(pos: Vector3i, neighbor_pos: Vector3i, current_block: BlockType) -> bool:
 	if not voxels.has(neighbor_pos):
@@ -349,35 +333,49 @@ func should_hide_face(pos: Vector3i, neighbor_pos: Vector3i, current_block: Bloc
 		return neighbor == current_block  # This culls the face ONLY if both blocks are the same.
 	return true  # Neighbor is opaque,cull.
 
+func add_face(face: Cube.Face, pos: Vector3i, block: BlockType) -> void:
+	var t0: int
+	if benchmarking:
+		t0 = Time.get_ticks_msec()
 
-func add_face(face: Face, vertice_position: Vector3, block: BlockType) -> void:
-	var start_time = Time.get_ticks_msec()
+	var offset: Vector3 = Vector3(pos)
+	var base_verts: PackedVector3Array = Cube.precomp_vertices[face]
 	
+	if base_verts.is_empty():
+		#print("precomp_vertices[", face, "] is empty!")
+		#print("precomp_vertices keys: ", Cube.precomp_vertices.keys())
+		#print("precomp_vertices size: ", Cube.precomp_vertices.size())
+		return
+	
+	var base_norms: PackedVector3Array = Cube.precomp_normals[face]
+
 	var uv_offset: Vector2
 	match face:
-		Face.TOP: uv_offset = block.uv_top
-		Face.BOTTOM: uv_offset = block.uv_bottom
-		_: uv_offset = block.uv_side
-	
-	var use_transparent = block.is_transparent
-	
-	# Add UVs so we can see textures	
-	var indices = face_indices[face]
-	for triangle in indices:
-		for index in triangle:
-			var vertex = (cube_vertices[index] + vertice_position)
-			var normal = face_normals[face]
-			var uv = (face_vertex_uvs[face][index] + uv_offset) / number_of_textures_in_atlas
-			if use_transparent:
-				transparent_vertices.append(vertex)
-				transparent_normals.append(normal)
-				transparent_uvs.append(uv)
-			else:
-				vertices.append(vertex)
-				normals.append(normal)
-				uvs.append(uv)
-	if benchmarking == true:
-		face_time += Time.get_ticks_msec() - start_time
+		Cube.Face.TOP:    uv_offset = block.uv_top
+		Cube.Face.BOTTOM: uv_offset = block.uv_bottom
+		_:           uv_offset = block.uv_side
+
+	if block.is_transparent:
+		for i in 6:
+			transparent_vertices.append(base_verts[i] + offset)
+		transparent_normals.append_array(base_norms)
+		for i in 6:
+			var index: int = Cube.FACE_INDICES[face][i / 3][i % 3]
+			transparent_uvs.append(
+				(Cube.face_vertex_uvs[face][index] + uv_offset) / number_of_textures_in_atlas
+			)
+	else:
+		for i in 6:
+			vertices.append(base_verts[i] + offset)
+		normals.append_array(base_norms)
+		for i in 6:
+			var index: int = Cube.FACE_INDICES[face][i / 3][i % 3]
+			uvs.append(
+				(Cube.face_vertex_uvs[face][index] + uv_offset) / number_of_textures_in_atlas
+			)
+
+	if benchmarking:
+		face_time += Time.get_ticks_msec() - t0
 
 func commit_mesh() -> void:
 	# This used to be the main function that generated chunks. Now it generates the initial chunks
@@ -388,9 +386,11 @@ func commit_mesh() -> void:
 	
 	# This makes sure that the player's spawn point is ready, but doesn't send the signal unless the
 	# Surface chunk in that XZ coordinate is the one that's ready.
-	#if mesh_instance.global_position == Vector3(0.0, chunk_height, 0.0) && Settings.player_is_spawned == false:
-		#EventBus.spawn_chunk_is_ready.emit()
-	#else: return
+	if not voxels.is_empty() and \
+		int(position.x) == 0 and \
+		int(position.z) == 0 and \
+		not Settings.player_is_spawned:
+		EventBus.spawn_chunk_is_ready.emit()
 	
 func commit_visuals() -> void:
 	# This will return empty chunks, like for sky.
@@ -405,11 +405,12 @@ func commit_visuals() -> void:
 	var new_mesh = ArrayMesh.new()
 	
 	if not vertices.is_empty():
-		var arrays = []
+		var arrays: Array = []
 		arrays.resize(Mesh.ARRAY_MAX)
 		arrays[Mesh.ARRAY_VERTEX] = vertices
 		arrays[Mesh.ARRAY_NORMAL] = normals
 		arrays[Mesh.ARRAY_TEX_UV] = uvs
+		arrays[Mesh.ARRAY_TEX_UV2] = uv2s
 		new_mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
 		new_mesh.surface_set_material(0, material)
 	if not transparent_vertices.is_empty():
@@ -419,20 +420,12 @@ func commit_visuals() -> void:
 		arrays[Mesh.ARRAY_NORMAL] = transparent_normals
 		arrays[Mesh.ARRAY_TEX_UV] = transparent_uvs
 		new_mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
-		new_mesh.surface_set_material(1, transparent_material)
+		new_mesh.surface_set_material(new_mesh.get_surface_count() - 1, transparent_material)
 		
 	mesh_instance.mesh = new_mesh
 	
 	if benchmarking == true:
 		print("Commit Visuals: %s ms" % (Time.get_ticks_msec() - start))
-	if EventBus.debug_transparent:
-		(material as StandardMaterial3D).transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-		(material as StandardMaterial3D).albedo_color = Color(1, 1, 1, 0.5)
-		#print("Enabled transparency")
-	else:
-		(material as StandardMaterial3D).transparency = BaseMaterial3D.TRANSPARENCY_DISABLED
-		(material as StandardMaterial3D).albedo_color = Color(1, 1, 1, 1)
-		#print("Disabled transparency")
 
 func commit_collision() -> void:
 	# This will return empty chunks, like for sky.
@@ -460,6 +453,7 @@ func threaded_rebuild() -> void:
 		transparent_vertices.clear()
 		transparent_normals.clear()
 		transparent_uvs.clear()
+		uv2s.clear()
 		generate_mesh() # Generate_mesh has its own timer and print funciton.
 		regen_mutex.unlock()
 		commit_visuals.call_deferred()

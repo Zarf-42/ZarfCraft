@@ -1,14 +1,19 @@
 class_name ChunkManager extends Node
 
-# Chunk Manager defines the order in which chunks are generated. It splits this task among the available threads.
+# World Manager defines the order in which chunks are generated. It splits this task among the available threads.
 
-# Chunk Size doesn't include vertical height, since we likely will be using tall chunks.
+# Chunk Size and Height are two seperate variables in case we want to use tall chunks (Like 16x16x32).
 @onready var chunk_size: int = Settings.chunk_size
 @onready var chunk_height: int = Settings.chunk_height
-@onready var skip_these_chunks = []
-@onready var player_focus: BlockRay = $"../Player/Head/PlayerEyes/PlayerFocus"
+@onready var player_focus: BlockRay = $"../Player/Head/PlayerEyes/PlayerFocus" # Highlights the block 
+	# the player is looking at, assuming it's within Settings.player_reach.
 @onready var player: CharacterBody3D = $"../Player"
-@export var block_types: Array[BlockType] = []
+@export var block_types: Array[BlockType] = [] # Not sure this is the best way to handle this, but
+	# this is an array that contains every block type in the game. Filled in the Godot Editor.
+
+# For overhanging blocks from neighboring chunks, like leaves
+var blocks_from_adjacent_chunks: Dictionary = {}  # Vector3i world pos -> BlockType
+var adjacent_blocks_applied: bool = false
 
 var render_distance = Settings.chunk_render_distance
 var altitude_generator = FastNoiseLite.new() # Surface height noise
@@ -23,8 +28,16 @@ var total_collision_time: int = 0
 var visual_commit_count: int = 0
 var collision_commit_count: int = 0
 var stop_timing_chunk_generation: bool = false
+var stat_mutex: Mutex = Mutex.new()
+var stat_generate_mesh_total: int = 0
+var stat_generate_mesh_count: int = 0
+var stat_add_face_total: int = 0
+var stat_add_face_count: int = 0
+var stat_chunks_expected: int = 0
+var stat_chunks_reported: int = 0
 
 var world_seed: int = 0
+var atlas_tiles: Vector2 = Vector2.ZERO
 
 var loading_threads: Array = Settings.threads
 
@@ -37,7 +50,7 @@ var loading_threads: Array = Settings.threads
 var chunk_visual_queue: Array = []
 var chunk_collision_queue: Array = []
 
-var chunk_class = preload("res://world/chunk.tscn")
+var chunk_class = preload("res://world/generation/chunk.tscn")
 var chunks: Dictionary[Vector3i, Chunk] = {}
 
 func _process(_delta: float) -> void:
@@ -45,7 +58,7 @@ func _process(_delta: float) -> void:
 		var chunk = chunk_visual_queue.pop_front() # pop this chunk into the front of the queue
 		var start_time = Time.get_ticks_msec()
 		chunk.commit_visuals()
-		total_visual_time = Time.get_ticks_msec() - start_time
+		total_visual_time += Time.get_ticks_msec() - start_time
 		visual_commit_count += 1
 		stop_timing_chunk_generation = false
 		chunk_collision_queue.append(chunk) # Seperately queued collision
@@ -55,31 +68,27 @@ func _process(_delta: float) -> void:
 		var chunk = chunk_collision_queue.pop_front() # pop this chunk into the front of the queue
 		var start_time = Time.get_ticks_msec()
 		chunk.commit_collision()
-		total_collision_time = Time.get_ticks_msec() - start_time
+		total_collision_time += Time.get_ticks_msec() - start_time
 		collision_commit_count += 1
 		stop_timing_chunk_generation = false
 		if chunk.position == Vector3(0.0, Settings.chunk_height, 0.0) and Settings.player_is_spawned == false:
 			EventBus.spawn_chunk_is_ready.emit()
-
-	# Print average time taken to generate visual and collision once both queues are empty
-	if chunk_visual_queue.is_empty() and chunk_collision_queue.is_empty() and stop_timing_chunk_generation == false:
-		print("=== Commit Queue Complete ===")
-		if visual_commit_count > 0:
-			print("Visual:		avg %s over %s chunks" % [
-				float(total_visual_time) / visual_commit_count, visual_commit_count])
-		if collision_commit_count > 0:
-			print("Collision:	avg %s over %s chunks" % [
-				float(total_collision_time) / collision_commit_count, collision_commit_count])
-
-		# Reset for the next generation cycle (I.E. when a player enters a new chunk or starts a new world)
-		total_visual_time = 0
-		total_collision_time = 0
-		visual_commit_count = 0
-		collision_commit_count = 0
-		stop_timing_chunk_generation = true
+	
+	if not adjacent_blocks_applied and \
+			stat_chunks_reported >= stat_chunks_expected and \
+			chunk_visual_queue.is_empty() and \
+			chunk_collision_queue.is_empty():
+		adjacent_blocks_applied = true
+		apply_blocks_from_adjacent_chunks()
 
 func _ready() -> void:
 	BlockRegistry.register(block_types)
+	
+	var temp_chunk: Chunk = chunk_class.instantiate()  # just to access its precomp tables
+	var atlas_texture: Texture2D = temp_chunk.material.get_shader_parameter("texture_albedo")
+	if atlas_texture != null:
+		atlas_tiles = Vector2(atlas_texture.get_size().x / Settings.texture_size, 1.0)
+	temp_chunk.free()
 	if SaveManager.is_loading:
 		var world_data = SaveManager.load_world()
 		if not world_data.is_empty():
@@ -87,7 +96,7 @@ func _ready() -> void:
 	else:
 		# Uncomment this to make the world gen random. It's not currently, which can be helpful in testing.
 		# Leaving this commented means the map will be the same every time you run the game.
-		world_seed = randi()
+		#world_seed = randi()
 		altitude_generator.seed = world_seed
 	
 	# This makes it so the Signal emission at the end of generate_chunks() doesn't fire until the
@@ -101,14 +110,17 @@ func _ready() -> void:
 	# This tells everybody when the Chunk Manager (I.E. this file) is ready
 	EventBus.chunk_manager = self
 	
-	var chunks_to_generate = []
-	chunks_to_generate = generate_terrain_infinite()
+	var chunks_to_generate: Array = generate_terrain_infinite()
+	
+	# Count the total chunks across all threads, plus the 3 spawn chunks
+	stat_chunks_expected = 3  # spawn_point_chunks
+	for thread_batch in chunks_to_generate:
+		stat_chunks_expected += thread_batch.size()
 	
 	multithreaded_terrain_generation(chunks_to_generate, loading_threads)
 	
 	# Tell other scenes we're ready
 	EventBus.blocks_ready.emit(block_types)
-	
 
 func generate_terrain_infinite() -> Array:
 	# Initialize heightmap noise
@@ -136,41 +148,91 @@ func generate_terrain_infinite() -> Array:
 		chunk_coordinates[i % num_threads].append(chunk_queue[i])    
 	return chunk_coordinates
 
-#2/2/2026: Generates concentric circlular rings, not a spiral. Appears to have no gaps or overlap.
-# 2/23/26: Attempting to avoid generating multiple layers of chunks on top of each other. Since we're
-# generating chunks per X, Y, and Z, this is using 3 passes to generate them. We just want X and Z.
-# This was largely generated by AI. Refactor using real human brains.
+# 3/28.26: Re-wrote this method to be able to do an arbitrary number of layers. Used to be limited to
+# 3 very tall layers.
 func get_chunk_queue() -> Array:
-	var chunk_queue = []
-	# Changing the below to "range(0, render_distance+1)" will let this method generate the
-	# spawnpoint. Keeping it at "range(1, render_distance+1)" leaves the spawnpoint to be generated
-	# elsewhere so it can send a signal.
+	var chunk_queue: Array = []
+	var num_layers: int = Settings.world_height / Settings.chunk_height
+	
 	for distance in range(1, render_distance + 1):
-		# Generate all chunks within this ring (distance-1 < r <= distance)
 		for x in range(-distance, distance + 1):
 			for y in range(-distance, distance + 1):
 				if maxi(absi(x), absi(y)) == distance:
-					chunk_queue.append(Vector3i(x, y, 0))
-					chunk_queue.append(Vector3i(x, y, 1))
-					chunk_queue.append(Vector3i(x, y, 2))
-	return(chunk_queue)
+					for layer in range(num_layers):
+						chunk_queue.append(Vector3i(x, y, layer))
+	return chunk_queue
 
 func generate_chunks(pos) -> void:
 	for chunk in pos:
 		if kill_thread == true:
 			break
-		var new_chunk = chunk_class.instantiate()
-		new_chunk.position = Vector3i((chunk.x * chunk_size), (chunk.z * chunk_height), (chunk.y * chunk_size))
+		if chunks.has(chunk): # Check for, and skip duplicates
+			print(chunk, " is a duplicate")
+			continue
+		var new_chunk: Chunk = chunk_class.instantiate()
+		new_chunk.number_of_textures_in_atlas = atlas_tiles  # ← add this
+		new_chunk.position = Vector3i(
+			chunk.x * chunk_size,
+			chunk.z * chunk_height,
+			chunk.y * chunk_size)
 		new_chunk.chunks_key = chunk
+		new_chunk.world_seed = altitude_generator.seed
 		new_chunk.generate_data(chunk_size, chunk_height, altitude_generator, big_cave_generator, long_cave_generator)
 		if SaveManager.is_loading:
 			SaveManager.apply_chunk_diffs(new_chunk)
 		new_chunk.generate_mesh()
+		report_stats.call_deferred(new_chunk.stat_generate_mesh_us, new_chunk.stat_add_face_us, new_chunk.stat_add_face_count)
+		
+		# Collect any tree blocks destined for neighboring chunks
+		if not new_chunk.blocks_from_adjacent_chunks.is_empty():
+			register_blocks_from_adjacent_chunks.call_deferred(new_chunk.blocks_from_adjacent_chunks)
+			new_chunk.blocks_from_adjacent_chunks.clear()
+		
 		new_chunk.was_generated_by_thread = true
 		new_chunk.name = str((new_chunk.position as Vector3i) / Vector3i(chunk_size, chunk_height, chunk_size))
 		chunks[chunk] = new_chunk
 		call_deferred("add_child", new_chunk)
 		call_deferred("add_to_commit_queue", new_chunk)
+
+func register_blocks_from_adjacent_chunks(blocks: Dictionary) -> void:
+	for world_pos: Vector3i in blocks:
+		blocks_from_adjacent_chunks[world_pos] = blocks[world_pos]
+
+func apply_blocks_from_adjacent_chunks() -> void:
+	print("Adjacent blocks")
+	if blocks_from_adjacent_chunks.is_empty():
+		return
+
+	var chunks_to_rebuild: Dictionary = {}
+
+	for world_pos: Vector3i in blocks_from_adjacent_chunks:
+		var block: BlockType = blocks_from_adjacent_chunks[world_pos]
+
+		# Find which chunk owns this world position
+		var chunk_x: int = int(floor(float(world_pos.x) / Settings.chunk_size))
+		var chunk_z: int = int(floor(float(world_pos.z) / Settings.chunk_size))
+		var chunk_layer: int = int(floor(float(world_pos.y) / Settings.chunk_height))
+		var chunk_key: Vector3i = Vector3i(chunk_x, chunk_layer, chunk_z)
+		print("Adjacent block at ", world_pos, " -> chunk_key ", chunk_key, " chunk exists: ", chunks.has(chunk_key))
+
+		var target_chunk: Chunk = chunks.get(chunk_key, null)
+		if target_chunk == null:
+			continue
+
+		# Convert world pos to local chunk pos
+		var local_pos: Vector3i = Vector3i(
+			world_pos.x - chunk_x * Settings.chunk_size,
+			world_pos.y - chunk_layer * Settings.chunk_height,
+			world_pos.z - chunk_z * Settings.chunk_size)
+
+		target_chunk.voxels[local_pos] = block
+		chunks_to_rebuild[chunk_key] = target_chunk
+
+	# Rebuild meshes for all affected chunks
+	for chunk_key: Vector3i in chunks_to_rebuild:
+		chunks_to_rebuild[chunk_key].request_rebuild()
+
+	blocks_from_adjacent_chunks.clear()
 
 func add_to_commit_queue(chunk: Chunk) -> void:
 	chunk_visual_queue.append(chunk)
@@ -179,9 +241,13 @@ func add_to_commit_queue(chunk: Chunk) -> void:
 		SaveManager.apply_chunk_diffs(chunk)
 
 func multithreaded_terrain_generation(chunks_by_thread, _number_of_threads) -> void:
+	var num_layers: int = Settings.world_height / Settings.chunk_height
 	# We need to generate the player's spawn position first. This must include all 3 vertical chunks
 	# that exist at this XY coordinate; underground, surface, and sky.
-	var spawn_point_chunks = [Vector3i(0, 0, 0), Vector3i(0, 0, 1), Vector3i(0, 0, 2)]
+	var spawn_point_chunks: Array = []
+	for layer in range(num_layers):
+		spawn_point_chunks.append(Vector3i(0, 0, layer))
+	#var spawn_point_chunks = [Vector3i(0, 0, 0), Vector3i(0, 0, 1), Vector3i(0, 0, 2)]
 	generate_chunks(spawn_point_chunks)  # Generate spawn chunk first
 	
 	for i in range(chunks_by_thread.size()):
@@ -191,7 +257,7 @@ func multithreaded_terrain_generation(chunks_by_thread, _number_of_threads) -> v
 # This ensures voxels get added to the correct chunk. If chunk size is 32x32 and player adds one at
 # 33, it'll add the block to the neighboring chunk.
 func get_target_chunk(world_position: Vector3i, current_chunk: Chunk) -> Dictionary:
-	var local_pos = world_position - Vector3i(current_chunk.global_position)
+	var local_pos: Vector3i = world_position - Vector3i(current_chunk.global_position)
 	
 	# Check if position is within this chunk's bounds
 	if local_pos.x >= 0 and local_pos.x < Settings.chunk_size and \
@@ -200,10 +266,11 @@ func get_target_chunk(world_position: Vector3i, current_chunk: Chunk) -> Diction
 		return {"chunk": current_chunk, "local_pos": local_pos}
 	
 	# Determine which chunk this voxel actually belongs to
-	var correct_chunk_x = int(floor(float(world_position.x) / Settings.chunk_size))
-	var correct_chunk_z = int(floor(float(world_position.z) / Settings.chunk_size))
-	var correct_chunk_key = Vector3i(correct_chunk_x, correct_chunk_z, 0)
-	var correct_chunk = chunks.get(correct_chunk_key, null)
+	var correct_chunk_x: int = int(floor(float(world_position.x) / Settings.chunk_size))
+	var correct_chunk_z: int = int(floor(float(world_position.z) / Settings.chunk_size))
+	var correct_chunk_layer: int = int(floor(float(world_position.y) / Settings.chunk_height))
+	var correct_chunk_key: Vector3i = Vector3i(correct_chunk_x, correct_chunk_z, 0)
+	var correct_chunk: Chunk = chunks.get(correct_chunk_key, null)
 	if correct_chunk == null:
 		return {} # This may help if we ever have constrained-sized worlds.
 	return {"chunk": correct_chunk, "local_pos": world_position - Vector3i(correct_chunk.global_position)}
@@ -244,13 +311,18 @@ func _on_add_block(_pos: Vector3i) -> void:
 	correct_chunk.request_rebuild()
 
 func _on_remove_block(_pos: Vector3i) -> void:
-	var chunk = player_focus.get_collider() as Chunk
+	var chunk: Chunk = player_focus.get_collider() as Chunk
+	if chunk == null:
+		print("No chunk collider found")
+		return
+		
 	var local_pos = player_focus.get_ray_hit().remove_position - Vector3i(chunk.global_position)
+	
 	
 	if chunk.voxels.has(local_pos):
 		chunk.regen_mutex.lock()
-		# Dirty voxels are used to creat diffs between what's naturally generated and what the player did.
 		chunk.voxels.erase(local_pos)
+		# Dirty voxels are used to creat diffs between what's naturally generated and what the player did.
 		chunk.dirty_voxels[local_pos] = null
 		chunk.regen_mutex.unlock()
 		chunk.player_initiated_rebuild = true
@@ -261,6 +333,59 @@ func remove_chunk(chunk_position: Vector3i) -> void:
 	var chunk = chunks[chunk_position]
 	chunks.erase(chunk_position)
 	chunk.queue_free()
+
+# Helper Function that can return the Surface Height of any chunk.
+# Call EventBus.chunk_manager.get_surface(x, z) from anywhere.
+func get_surface_y(world_x: int, world_z: int) -> int:
+	var chunk_x: int = int(floor(float(world_x) / Settings.chunk_size))
+	var chunk_z: int = int(floor(float(world_z) / Settings.chunk_size))
+	var local_x: int = world_x - chunk_x * Settings.chunk_size
+	var local_z: int = world_z - chunk_z * Settings.chunk_size
+
+	# Search from the top layer down for the first chunk with a real surface entry
+	var num_layers: int = Settings.world_height / Settings.chunk_height
+	for layer in range(num_layers - 1, -1, -1):
+		var chunk: Chunk = chunks.get(Vector3i(chunk_x, chunk_z, layer), null)
+		if chunk == null:
+			continue
+		var h: int = chunk.heightmap[local_x][local_z]
+		if h != -1:
+			return h
+
+	return -1  # No surface found in this column
+
+func report_stats(generate_mesh_us: int, add_face_us: int, add_face_calls: int) -> void:
+	stat_mutex.lock()
+	stat_generate_mesh_total += generate_mesh_us
+	stat_generate_mesh_count += 1
+	stat_add_face_total += add_face_us
+	stat_add_face_count += add_face_calls
+	stat_chunks_reported += 1
+	var all_done: bool = stat_chunks_reported >= stat_chunks_expected
+	stat_mutex.unlock()
+
+	#if all_done:
+		#print_generation_stats()
+
+func print_generation_stats() -> void:
+	print("=== Generation Complete: %d chunks ===" % stat_chunks_reported)
+	if stat_generate_mesh_count > 0:
+		print("  generate_mesh:    avg %.2f us over %d chunks" % [
+			float(stat_generate_mesh_total) / stat_generate_mesh_count,
+			stat_generate_mesh_count])
+	if stat_add_face_count > 0:
+		print("  add_face:         called %d times total, avg %.4f us each" % [
+			stat_add_face_count,
+			float(stat_add_face_total) / stat_add_face_count])
+	if visual_commit_count > 0:
+		print("  commit_visuals:   avg %.2f ms over %d chunks" % [
+			float(total_visual_time) / visual_commit_count,
+			visual_commit_count])
+	if collision_commit_count > 0:
+		print("  commit_collision: avg %.2f ms over %d chunks" % [
+			float(total_collision_time) / collision_commit_count,
+			collision_commit_count])
+	pass
 
 # This acts as a flag that should allow us to terminate threads almost instantly.
 func thread_is_kill() -> bool:

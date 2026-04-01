@@ -1,95 +1,44 @@
-[gd_scene format=3 uid="uid://ksod5a3i64u2"]
+[gd_scene format=4 uid="uid://ksod5a3i64u2"]
 
 [ext_resource type="Script" uid="uid://dxmu761xmq1bu" path="res://blocks/block_preview.gd" id="1_4bqry"]
-[ext_resource type="Resource" uid="uid://dy4kqgie51ncn" path="res://blocks/oak_log.tres" id="2_hpkcj"]
+[ext_resource type="Resource" uid="uid://brcn3da64g2nv" path="res://blocks/trees/birch_log.tres" id="2_hpkcj"]
 [ext_resource type="Texture2D" uid="uid://tjx2w77isjok" path="res://blocks/textures/atlas.png" id="3_hk71f"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_hpkcj"]
 transparency = 1
-shading_mode = 0
+depth_draw_mode = 1
+specular_mode = 2
 vertex_color_use_as_albedo = true
 albedo_texture = ExtResource("3_hk71f")
+metallic_specular = 0.0
 texture_filter = 0
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_hk71f"]
-albedo_texture = ExtResource("3_hk71f")
-uv1_scale = Vector3(0.125, 1, 1)
-uv1_offset = Vector3(0.875, 0, 0)
-texture_filter = 0
-
-[sub_resource type="QuadMesh" id="QuadMesh_x3o2o"]
-
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_vd34d"]
-albedo_texture = ExtResource("3_hk71f")
-uv1_scale = Vector3(0.125, 1, 1)
-uv1_offset = Vector3(0.875, 0, 0)
-texture_filter = 0
-
-[sub_resource type="QuadMesh" id="QuadMesh_43a82"]
-
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_ag5v7"]
-albedo_texture = ExtResource("3_hk71f")
-uv1_scale = Vector3(0.125, 1, 1)
-uv1_offset = Vector3(0.75, 0, 0)
-texture_filter = 0
-
-[sub_resource type="QuadMesh" id="QuadMesh_o0512"]
-
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_1dqxb"]
-albedo_texture = ExtResource("3_hk71f")
-uv1_scale = Vector3(0.125, 1, 1)
-uv1_offset = Vector3(0.75, 0, 0)
-texture_filter = 0
-
-[sub_resource type="QuadMesh" id="QuadMesh_ixcx1"]
-
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_fil60"]
-albedo_texture = ExtResource("3_hk71f")
-uv1_scale = Vector3(0.125, 1, 1)
-uv1_offset = Vector3(0.75, 0, 0)
-texture_filter = 0
-
-[sub_resource type="QuadMesh" id="QuadMesh_6cf1c"]
-
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_oale0"]
-albedo_texture = ExtResource("3_hk71f")
-uv1_scale = Vector3(0.125, 1, 1)
-uv1_offset = Vector3(0.75, 0, 0)
-texture_filter = 0
-
-[sub_resource type="QuadMesh" id="QuadMesh_rbgoc"]
+[sub_resource type="ArrayMesh" id="ArrayMesh_hpkcj"]
+_surfaces = [{
+"aabb": AABB(0, 0, 0, 1, 1, 1),
+"attribute_data": PackedByteArray("3t1dPwAAAADv7m4/AAAAAO/ubj8AAIA/3t1dPwAAAADv7m4/AACAP97dXT8AAIA/zcxMPwAAgD/NzEw/AAAAAN7dXT8AAAAAzcxMPwAAgD/e3V0/AAAAAN7dXT8AAIA/zcxMPwAAgD/NzEw/AAAAAN7dXT8AAAAAzcxMPwAAgD/e3V0/AAAAAN7dXT8AAIA/3t1dPwAAgD/e3V0/AAAAAO/ubj8AAAAA3t1dPwAAgD/v7m4/AAAAAO/ubj8AAIA/zcxMPwAAgD/NzEw/AAAAAN7dXT8AAAAAzcxMPwAAgD/e3V0/AAAAAN7dXT8AAIA/zcxMPwAAgD/e3V0/AAAAAN7dXT8AAIA/zcxMPwAAgD/NzEw/AAAAAN7dXT8AAAAA"),
+"format": 34359738391,
+"material": SubResource("StandardMaterial3D_hpkcj"),
+"primitive": 3,
+"uv_scale": Vector4(0, 0, 0, 0),
+"vertex_count": 36,
+"vertex_data": PackedByteArray("AAAAAAAAAAAAAIA/AACAPwAAAAAAAIA/AACAPwAAAAAAAAAAAAAAAAAAAAAAAIA/AACAPwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIA/AAAAAAAAgD8AAIA/AACAPwAAgD8AAIA/AAAAAAAAAAAAAIA/AACAPwAAgD8AAIA/AACAPwAAAAAAAIA/AACAPwAAAAAAAIA/AACAPwAAgD8AAIA/AACAPwAAgD8AAAAAAACAPwAAAAAAAIA/AACAPwAAgD8AAAAAAACAPwAAAAAAAAAAAAAAAAAAgD8AAIA/AAAAAAAAgD8AAAAAAACAPwAAgD8AAAAAAAAAAAAAgD8AAIA/AACAPwAAgD8AAAAAAACAPwAAgD8AAIA/AAAAAAAAAAAAAAAAAAAAAAAAgD8AAAAAAAAAAAAAgD8AAIA/AAAAAAAAAAAAAAAAAAAAAAAAgD8AAIA/AAAAAAAAAAAAAIA/AACAPwAAAAAAAAAAAAAAAAAAgD8AAAAAAAAAAAAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAgD8AAAAAAAAAAAAAgD8AAAAA/38AAAAA/7//fwAAAAD/v/9/AAAAAP+//38AAAAA/7//fwAAAAD/v/9/AAAAAP+//3//f/9/AID/f/9//38AgP9//3//fwCA/3//f/9/AID/f/9//38AgP9//3//fwCA////f/9//7////9//3//v////3//f/+/////f/9//7////9//3//v////3//f/+//3///wAA/7//f///AAD/v/9///8AAP+//3///wAA/7//f///AAD/v/9///8AAP+/AAD/f/9//78AAP9//3//vwAA/3//f/+/AAD/f/9//78AAP9//3//vwAA/3//f/+///////9/AID//////38AgP//////fwCA//////9/AID//////38AgP//////fwCA")
+}]
 
 [node name="BlockPreview" type="Node3D" unique_id=2051927462]
 script = ExtResource("1_4bqry")
 block = ExtResource("2_hpkcj")
 material = SubResource("StandardMaterial3D_hpkcj")
+texture_size = 16
+refresh = true
 
-[node name="Top" type="MeshInstance3D" parent="." unique_id=1854333408]
-transform = Transform3D(1, 0, 0, 0, -4.371139e-08, 1, 0, -1, -4.371139e-08, 0, 0.5, 0)
-material_override = SubResource("StandardMaterial3D_hk71f")
-mesh = SubResource("QuadMesh_x3o2o")
+[node name="Label3D" type="Label3D" parent="." unique_id=2099390900]
+transform = Transform3D(-1, 0, -8.742278e-08, 0, 1, 0, 8.742278e-08, 0, -1, 0.49059856, 0.58629084, -0.23753262)
+text = "Back"
 
-[node name="Bottom" type="MeshInstance3D" parent="." unique_id=871633330]
-transform = Transform3D(1, 0, 0, 0, -4.371139e-08, -1, 0, 1, -4.371139e-08, 0, -0.5, 0)
-material_override = SubResource("StandardMaterial3D_vd34d")
-mesh = SubResource("QuadMesh_43a82")
+[node name="Label3D2" type="Label3D" parent="." unique_id=1565808430]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.49059856, 0.58629084, 1.2363398)
+text = "Front"
 
-[node name="Front" type="MeshInstance3D" parent="." unique_id=990856100]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.5)
-material_override = SubResource("StandardMaterial3D_ag5v7")
-mesh = SubResource("QuadMesh_o0512")
-
-[node name="Back" type="MeshInstance3D" parent="." unique_id=1303442911]
-transform = Transform3D(-1, 0, -8.742278e-08, 0, 1, 0, 8.742278e-08, 0, -1, 0, 0, -0.5)
-material_override = SubResource("StandardMaterial3D_1dqxb")
-mesh = SubResource("QuadMesh_ixcx1")
-
-[node name="Left" type="MeshInstance3D" parent="." unique_id=476660590]
-transform = Transform3D(-4.371139e-08, 0, -1, 0, 1, 0, 1, 0, -4.371139e-08, -0.5, 0, 0)
-material_override = SubResource("StandardMaterial3D_fil60")
-mesh = SubResource("QuadMesh_6cf1c")
-
-[node name="Right" type="MeshInstance3D" parent="." unique_id=1268465434]
-transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, 0.5, 0, 0)
-material_override = SubResource("StandardMaterial3D_oale0")
-mesh = SubResource("QuadMesh_rbgoc")
+[node name="CubePreview" type="MeshInstance3D" parent="." unique_id=687602394]
+mesh = SubResource("ArrayMesh_hpkcj")

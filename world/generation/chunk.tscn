@@ -1,0 +1,34 @@
+[gd_scene format=3 uid="uid://xbn4ypmc1oll"]
+
+[ext_resource type="Script" uid="uid://dl7w33xqehnw0" path="res://world/generation/chunk.gd" id="1_kdh3y"]
+[ext_resource type="Shader" uid="uid://kj0x8hi36og1" path="res://world/terrain.gdshader" id="2_6i0au"]
+[ext_resource type="Texture2D" uid="uid://tjx2w77isjok" path="res://blocks/textures/atlas.png" id="2_eat54"]
+[ext_resource type="Script" uid="uid://da6pdmov2j8wc" path="res://world/surface_features/tree_type.gd" id="4_ksjfa"]
+[ext_resource type="Resource" uid="uid://ca564s1b5yuoo" path="res://blocks/trees/oak_tree.tres" id="5_dooba"]
+[ext_resource type="Resource" uid="uid://dv3il6mu41afn" path="res://blocks/trees/birch_tree.tres" id="6_k7vje"]
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_4oxuw"]
+render_priority = 0
+shader = ExtResource("2_6i0au")
+shader_parameter/texture_albedo = ExtResource("2_eat54")
+shader_parameter/roughness = 1.0
+shader_parameter/specular = 0.0
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_uc5gi"]
+transparency = 1
+depth_draw_mode = 1
+specular_mode = 2
+vertex_color_use_as_albedo = true
+albedo_texture = ExtResource("2_eat54")
+metallic_specular = 0.0
+texture_filter = 0
+
+[node name="Chunk" type="StaticBody3D" unique_id=1147404096]
+script = ExtResource("1_kdh3y")
+tree_types = Array[ExtResource("4_ksjfa")]([ExtResource("5_dooba"), ExtResource("6_k7vje")])
+material = SubResource("ShaderMaterial_4oxuw")
+transparent_material = SubResource("StandardMaterial3D_uc5gi")
+
+[node name="TerrainCollision" type="CollisionShape3D" parent="." unique_id=1799023280]
+
+[node name="TerrainMesh" type="MeshInstance3D" parent="." unique_id=1552800747]

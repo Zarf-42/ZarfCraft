@@ -9,16 +9,14 @@ extends Node
 #@onready var chunk_manager = get_parent().get_node("World").get_node("ChunkManager")
 #@onready var player: CharacterBody3D = get_parent().get_node("World").get_node("Player")
 
-var chunk_manager: ChunkManager
+var chunk_manager: ChunkManager # TODO: This has been changed to WorldManager. Get rid?
 var player: CharacterBody3D
 var debug_transparent: bool = false
 
 signal spawn_chunk_is_ready
 signal chunk_spawned
 signal blocks_ready(block_types: Array) # Used to tell other scenes when we've loaded all available
-#var chunk_manager: ChunkManager
-# block types.
-#signal button_pressed(_PauseButton)
 
-func _ready():
+
+func _ready(): # TODO: Check if we can remove this. Makes no sense that the event bus can't be paused normally.
 	process_mode = Node.PROCESS_MODE_ALWAYS

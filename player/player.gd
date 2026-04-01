@@ -71,11 +71,16 @@ func _physics_process(delta: float) -> void:
 		running = 2
 	else:
 		running = 1
+	
+
 
 	# Get the input direction and handle the movement/deceleration.
 	# As good practice, you should replace UI actions with custom gameplay actions.
 	var input_dir := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
 	var direction
+	# Handle Turbo, if player holds down Ctrl and Shift while flying
+	if Input.is_action_pressed("run") && Input.is_action_pressed("crouch") && flying == true:
+		velocity = direction * SPEED * 20 * running
 	if flying:
 		direction = (eyes.global_transform.basis * Vector3(input_dir.x, 0, input_dir.y)).normalized()
 		velocity = direction * SPEED * 2 * running

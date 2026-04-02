@@ -8,6 +8,7 @@
 [ext_resource type="Texture2D" uid="uid://bwhu01o0tt1pv" path="res://res/cursor_cube.png" id="6_1jxqw"]
 [ext_resource type="Texture2D" uid="uid://bf06rq0kyn2xc" path="res://blocks/textures/ui-square.png" id="6_dw050"]
 [ext_resource type="Script" uid="uid://by7rr7cbs8k4k" path="res://player/selected_block.gd" id="7_1jxqw"]
+[ext_resource type="Script" uid="uid://biffamgocgtsq" path="res://player/voxel_collision_manager.gd" id="9_hg6s5"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_sh265"]
 radius = 0.25
@@ -205,3 +206,6 @@ mesh = SubResource("BoxMesh_1jxqw")
 
 [node name="SelectedBlock" type="Node" parent="." unique_id=187458403]
 script = ExtResource("7_1jxqw")
+
+[node name="VoxelCollisionManager" type="Node3D" parent="." unique_id=1343464138]
+script = ExtResource("9_hg6s5")

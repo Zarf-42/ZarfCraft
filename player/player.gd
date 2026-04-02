@@ -128,7 +128,7 @@ func spawn() -> void:
 	
 	var spawn_chunk: Chunk = null
 	for layer in range(num_layers - 1, -1, -1):
-		var spawn_chunk_candidate: Chunk = EventBus.chunk_manager.chunks.get(Vector3i(0, 0, layer), null)
+		var spawn_chunk_candidate: Chunk = EventBus.chunk_manager.chunks.get(Vector3i(0, layer, 0), null)
 		if spawn_chunk_candidate != null and not spawn_chunk_candidate.voxels.is_empty():
 			spawn_chunk = spawn_chunk_candidate
 			break
@@ -171,8 +171,7 @@ func spawn() -> void:
 					# Add chunk's world position to get correct world coords
 					var world_y = y + spawn_chunk.position.y
 					# Wait for collision to be ready if it isn't yet
-					if not spawn_chunk.collision_shape.shape:
-						await spawn_chunk.collision_ready
+					await get_tree().physics_frame
 					player.global_position = Vector3(random_location_x, world_y + 1, random_location_z)
 					Settings.player_is_spawned = true
 					visible = true
@@ -198,7 +197,7 @@ func load_spawn() -> void: # For loading a savegame
 	
 	var chunk_x = int(floor(target_pos.x / Settings.chunk_size))
 	var chunk_z = int(floor(target_pos.z / Settings.chunk_size))
-	var chunk_key = Vector3i(chunk_x, chunk_z, 0)
+	var chunk_key = Vector3i(chunk_x, 0, chunk_z)
 	while not EventBus.chunk_manager.chunks.has(chunk_key): # Attempt to prevent player spawning
 		# until the chunk they spawn in is ready
 		await get_tree().process_frame

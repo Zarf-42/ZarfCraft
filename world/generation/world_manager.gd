@@ -61,44 +61,46 @@ var chunks: Dictionary[Vector3i, Chunk] = {}
 
 func _process(_delta: float) -> void:
 	while not chunk_visual_queue.is_empty():
-		var chunk = chunk_visual_queue.pop_front() # pop this chunk into the front of the queue
+		var chunk = chunk_visual_queue.pop_front()
 		var start_time = Time.get_ticks_msec()
 		chunk.commit_visuals()
 		total_visual_time += Time.get_ticks_msec() - start_time
 		visual_commit_count += 1
 		stop_timing_chunk_generation = false
-		chunk_collision_queue.append(chunk) # Seperately queued collision
-	
+		chunk_collision_queue.append(chunk)
+
 	# Commit one collision chunk per frame, only if within radius
 	if not chunk_collision_queue.is_empty():
 		var chunk = chunk_collision_queue.pop_front()
 		var start_time = Time.get_ticks_msec()
-		
-		var should_commit: bool = false
-		if not Settings.player_is_spawned:
-			# During initial generation, commit all collision normally
-			should_commit = true
-		else:
+
+		var is_spawn_chunk: bool = chunk.position == Vector3(0.0, Settings.chunk_height, 0.0)
+
+		var in_radius: bool = false
+		if Settings.player_is_spawned:
 			var chunk_x: int = int(floor(chunk.position.x / Settings.chunk_size))
 			var chunk_z: int = int(floor(chunk.position.z / Settings.chunk_size))
 			var dx: int = abs(chunk_x - last_player_chunk_xz.x)
 			var dz: int = abs(chunk_z - last_player_chunk_xz.y)
-			should_commit = dx <= Settings.chunk_collision_radius and dz <= Settings.chunk_collision_radius
-		
-		if should_commit:
+			in_radius = dx <= Settings.chunk_collision_radius and dz <= Settings.chunk_collision_radius
+		else:
+			var chunk_x: int = int(floor(chunk.position.x / Settings.chunk_size))
+			var chunk_z: int = int(floor(chunk.position.z / Settings.chunk_size))
+			var dx: int = abs(chunk_x)
+			var dz: int = abs(chunk_z)
+			in_radius = dx <= Settings.chunk_collision_radius and dz <= Settings.chunk_collision_radius
+
+		if is_spawn_chunk or in_radius:
+			chunk.collision_shape.disabled = false
 			chunk.commit_collision()
 			total_collision_time += Time.get_ticks_msec() - start_time
 			collision_commit_count += 1
 			stop_timing_chunk_generation = false
-		
-		if chunk.position == Vector3(0.0, Settings.chunk_height, 0.0) and Settings.player_is_spawned == false:
-			EventBus.spawn_chunk_is_ready.emit()
-	
-	if not pending_structures.is_empty() and \
-		chunk_visual_queue.is_empty() and \
-		chunk_collision_queue.is_empty():
-			apply_late_ccs()
 
+		if is_spawn_chunk and Settings.player_is_spawned == false:
+			EventBus.spawn_chunk_is_ready.emit()
+
+	# Update collision meshes based on player proximity
 	if Settings.player_is_spawned:
 		var player_chunk_x: int = int(floor(player.global_position.x / Settings.chunk_size))
 		var player_chunk_z: int = int(floor(player.global_position.z / Settings.chunk_size))
@@ -106,19 +108,27 @@ func _process(_delta: float) -> void:
 
 		if player_chunk_xz != last_player_chunk_xz:
 			last_player_chunk_xz = player_chunk_xz
-			var chunk_collision_radius: int = Settings.chunk_collision_radius
-			
+			var radius: int = Settings.chunk_collision_radius
+
 			for chunk_key: Vector3i in chunks:
 				var chunk: Chunk = chunks[chunk_key]
-				# chunk_key.x is grid X, chunk_key.y is grid Z
+				if chunk.collision_shape == null:
+					continue
 				var dx: int = abs(chunk_key.x - player_chunk_x)
 				var dz: int = abs(chunk_key.y - player_chunk_z)
-				var in_radius: bool = dx <= chunk_collision_radius and dz <= chunk_collision_radius
-				
-				if in_radius and chunk.collision_shape != null and chunk.collision_shape.shape == null and not chunk.voxels.is_empty():
+				var in_radius: bool = dx <= radius and dz <= radius
+
+				if in_radius and chunk.collision_shape.shape == null and not chunk.voxels.is_empty():
+					chunk.collision_shape.disabled = false
 					chunk.commit_collision()
-				elif not in_radius and chunk.collision_shape != null and chunk.collision_shape.shape != null:
+				elif not in_radius and chunk.collision_shape.shape != null:
 					chunk.collision_shape.shape = null
+					chunk.collision_shape.disabled = true
+
+	if not pending_structures.is_empty() and \
+		chunk_visual_queue.is_empty() and \
+		chunk_collision_queue.is_empty():
+			apply_late_ccs()
 					
 func _ready() -> void:
 	BlockRegistry.register(block_types)
@@ -243,6 +253,19 @@ func generate_chunks(pos) -> void:
 		call_deferred("add_child", new_chunk)
 		call_deferred("add_to_commit_queue", new_chunk)
 
+func request_collision_commit(chunk: Chunk) -> void:
+	if chunk.collision_shape == null:
+		return
+	var chunk_x: int = int(floor(chunk.position.x / Settings.chunk_size))
+	var chunk_z: int = int(floor(chunk.position.z / Settings.chunk_size))
+	var dx: int = abs(chunk_x - last_player_chunk_xz.x)
+	var dz: int = abs(chunk_z - last_player_chunk_xz.y)
+	if dx <= Settings.chunk_collision_radius and dz <= Settings.chunk_collision_radius:
+		chunk.set_process(true)
+		chunk.collision_shape.disabled = false
+		chunk.commit_collision()
+
+# CCSs are Cross-Chunk Structures, like trees.
 func register_ccs(world_pos: Vector3i, block: BlockType) -> void:
 	var chunk_x: int = int(floor(float(world_pos.x) / Settings.chunk_size))
 	var chunk_y: int = int(floor(float(world_pos.z) / Settings.chunk_size))

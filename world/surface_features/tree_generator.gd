@@ -37,7 +37,7 @@ static func generate_tree(
 					world_x - int(chunk_pos.x),
 					local_y,
 					world_z - int(chunk_pos.z))):
-				print("  Blocked at y=", y, " local_y=", local_y)
+				#print("  Treegen was blocked at y=", y, " local_y=", local_y)
 				return {}
 
 	# Clearance passed — build the tree

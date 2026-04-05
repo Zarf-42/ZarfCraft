@@ -34,12 +34,10 @@ var found_chunk: Chunk = null # For finding the chunk the player is spawning in
 
 func _ready() -> void:
 	visible = false
-	#player.global_position = Vector3i(0, -1000, 0) # Place the player far below the world until the chunk is ready
 	EventBus.blocks_ready.connect(_on_blocks_ready)
 
 	process_mode = Node.PROCESS_MODE_PAUSABLE
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
-	#player_focus.target_position = Settings.player_reach
 	EventBus.player = self
 
 func _on_blocks_ready(block_types: Array) -> void:
@@ -73,11 +71,16 @@ func _physics_process(delta: float) -> void:
 		running = 2
 	else:
 		running = 1
+	
+
 
 	# Get the input direction and handle the movement/deceleration.
 	# As good practice, you should replace UI actions with custom gameplay actions.
 	var input_dir := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
 	var direction
+	# Handle Turbo, if player holds down Ctrl and Shift while flying
+	if Input.is_action_pressed("run") && Input.is_action_pressed("crouch") && flying == true:
+		velocity = direction * SPEED * 20 * running
 	if flying:
 		direction = (eyes.global_transform.basis * Vector3(input_dir.x, 0, input_dir.y)).normalized()
 		velocity = direction * SPEED * 2 * running
@@ -120,23 +123,34 @@ func _unhandled_input(event: InputEvent) -> void:
 func spawn() -> void:
 	if Settings.player_is_spawned == true:
 		return
-		
-	var spawn_chunk = EventBus.chunk_manager.chunks.get(Vector3i(0, 0, 1), null)
+	
+	var num_layers: int = Settings.world_height / Settings.chunk_height
+	
+	var spawn_chunk: Chunk = null
+	for layer in range(num_layers - 1, -1, -1):
+		var spawn_chunk_candidate: Chunk = EventBus.chunk_manager.chunks.get(Vector3i(0, 0, layer), null)
+		if spawn_chunk_candidate != null and not spawn_chunk_candidate.voxels.is_empty():
+			spawn_chunk = spawn_chunk_candidate
+			break
 	if spawn_chunk == null:
-		return
+		print("Unable to find spawn chunk, retrying...")
+		await get_tree().process_frame
+		spawn()
+		
+	print("spawn_chunk voxels: ", spawn_chunk.voxels.size())
 		
 	# Find any horizontal location within the chunk, with the -1 helping to stay inside the chunk
-	var random_location_x = randi_range(0, chunk_size - 1)
-	var random_location_z = randi_range(0, chunk_size - 1)
+	var random_location_x: int = randi_range(0, chunk_size - 1)
+	var random_location_z: int = randi_range(0, chunk_size - 1)
 
 	for y in range(Settings.chunk_height - 1, -1, -1):
 		if spawn_chunk.voxels.has(Vector3i(random_location_x, y, random_location_z)):
 			# Ensure there are at least 2 empty blocks above the player so we don't spawn inside the roof of a cave
-			var player_legs = spawn_chunk.voxels.has(Vector3i(random_location_x, y + 1, random_location_z))
-			var player_torso = spawn_chunk.voxels.has(Vector3i(random_location_x, y + 2, random_location_z))
+			var player_legs: bool = spawn_chunk.voxels.has(
+				Vector3i(random_location_x, y + 1, random_location_z))
+			var player_torso: bool = spawn_chunk.voxels.has(
+				Vector3i(random_location_x, y + 2, random_location_z))
 			if not player_legs and not player_torso:
-				# Check for horizontal clearance too
-				var has_horizontal_clearance = true
 				# Check each horizontal offset - here called "Delta", or "d".
 				var neighbors = [
 					Vector3i(random_location_x + 1, y + 1, random_location_z),
@@ -144,6 +158,8 @@ func spawn() -> void:
 					Vector3i(random_location_x, y + 1, random_location_z + 1),
 					Vector3i(random_location_x, y + 1, random_location_z - 1),
 				]
+				# Check for horizontal clearance too
+				var has_horizontal_clearance = true
 				for neighbor in neighbors:
 					if spawn_chunk.voxels.has(neighbor):
 						has_horizontal_clearance = false
@@ -170,9 +186,7 @@ func spawn() -> void:
 
 func load_spawn() -> void: # For loading a savegame
 	found_chunk = null
-	#print("load_spawn called, pending_load: ", SaveManager.pending_load)
 	var world_data = SaveManager.load_world()
-	#print("world_data: ", world_data)
 	if world_data.is_empty():
 		print("world_data empty, falling back to spawn()")
 		spawn() # Fall back to the normal spawn function if the world doesn't load correctly
@@ -218,7 +232,6 @@ func load_spawn() -> void: # For loading a savegame
 		print("Waiting for collision after diffs...")
 		await found_chunk.collision_ready
 
-	
 	player.global_position = target_pos
 	print("Player reloaded at ", player.global_position)
 	head.rotation.y = world_data["player_rotation"]["head_y"]

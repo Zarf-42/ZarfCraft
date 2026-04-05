@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="BlockType" format=3 uid="uid://brcn3da64g2nv"]
+
+[ext_resource type="Script" uid="uid://bukjfu8um0cxb" path="res://blocks/block_type.gd" id="1_o0j6h"]
+
+[resource]
+script = ExtResource("1_o0j6h")
+block_name = "Birch Log"
+uv_top = Vector2(13, 0)
+uv_side = Vector2(12, 0)
+uv_bottom = Vector2(13, 0)
+metadata/_custom_type_script = "uid://bukjfu8um0cxb"

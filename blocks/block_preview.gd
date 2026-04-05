@@ -1,7 +1,10 @@
 @tool
 extends Node3D
 
-# Used to preview blocks in the editor.
+# Used to preview blocks in the editor. Not yet a 1-to-1 preview - UVs are slightly different in-game
+# and I haven't figured out why.
+
+# Drag a block Resource file into this to preview that block.
 @export var block: BlockType:
 	set(value):
 		block = value
@@ -15,7 +18,8 @@ extends Node3D
 		if Engine.is_editor_hint() and block != null and material != null:
 			preview_block()
 			
-@export var texture_size: int = 16
+@export var texture_size: int = Settings.texture_size
+
 @export var refresh: bool = false:
 	set(value):
 		refresh = value
@@ -31,85 +35,48 @@ func _ready() -> void:
 	preview_block()
 
 func preview_block() -> void:
-	print("preview_block called")
 	if block == null or material == null:
 		return
 
-
 	var atlas: Texture2D = (material as StandardMaterial3D).albedo_texture
 	var atlas_width = atlas.get_size().x
-	var tiles_wide = int(atlas_width / texture_size)
+	var number_of_textures = Vector2(atlas_width / float(texture_size), 1)
 
 	# Remove existing preview meshes
-	for child in get_children():
-		if child is MeshInstance3D:
-			child.free()
+	var existing = get_node_or_null("CubePreview")
+	if existing:
+		existing.free()
 
-	# Create three quads showing top, side, bottom
-	var faces = [
-		{"uv": block.uv_top, "pos": Vector3(0, .5, 0), "label": "Top", 
-			"rot": Basis.from_euler(Vector3(deg_to_rad(-90), 0, 0))},
-		{"uv": block.uv_bottom, "pos": Vector3(0, -.5, 0), "label": "Bottom", 
-			"rot": Basis.from_euler(Vector3(deg_to_rad(90), 0, 0))},
-		{"uv": block.uv_side, "pos": Vector3(0, 0, .5), "label": "Front", 
-			"rot": Basis.IDENTITY},
-		{"uv": block.uv_side, "pos": Vector3(0, 0, -.5), "label": "Back", 
-			"rot": Basis.from_euler(Vector3(0, deg_to_rad(180), 0))},
-		{"uv": block.uv_side, "pos": Vector3(-.5, 0, 0), "label": "Left", 
-			"rot": Basis.from_euler(Vector3(0, deg_to_rad(-90), 0))},
-		{"uv": block.uv_side, "pos": Vector3(.5, 0, 0), "label": "Right", 
-			"rot": Basis.from_euler(Vector3(0, deg_to_rad(90), 0))},
-	]
+	var mesh_instance = MeshInstance3D.new()
+	mesh_instance.name = "CubePreview"
+	add_child(mesh_instance)
+	mesh_instance.owner = get_tree().edited_scene_root
 
-	for face_data in faces:
-		var mesh_instance = MeshInstance3D.new()
-		mesh_instance.name = face_data["label"]
-		mesh_instance.position = face_data["pos"]
-		mesh_instance.transform = Transform3D(face_data["rot"], face_data["pos"])
-		add_child(mesh_instance)
-		mesh_instance.owner = get_tree().edited_scene_root
+	var vertices = PackedVector3Array()
+	var normals = PackedVector3Array()
+	var uvs = PackedVector2Array()
 
-		var quad = QuadMesh.new()
-		quad.size = Vector2(1, 1)
-		quad.add_uv2 = false
-		mesh_instance.mesh = quad
+	for face in Cube.Face.values():
+		var uv_offset: Vector2
+		match face:
+			Cube.Face.TOP:    uv_offset = block.uv_top
+			Cube.Face.BOTTOM: uv_offset = block.uv_bottom
+			_:                uv_offset = block.uv_side
 
-		var preview_material = StandardMaterial3D.new()
-		preview_material.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
-		preview_material.albedo_texture = atlas
+		for triangle in Cube.FACE_INDICES[face]:
+			for index in triangle:
+				vertices.append(Cube.VERTICES[index])
+				normals.append(Cube.FACE_NORMALS[face])
+				var uv = (Cube.compute_uv_for_vertex(face, index) + uv_offset) / number_of_textures
+				uvs.append(uv)
 
-		# Calculate UV offset and scale to show just this tile
-		#var atlas_width = atlas.get_size().x
-		var atlas_height = atlas.get_size().y
-		var tile_u = float(texture_size) / float(atlas_width)   # fraction of atlas one tile takes up horizontally
-		var tile_v = float(texture_size) / float(atlas_height)  # fraction of atlas one tile takes up vertically
+	var arrays = []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = vertices
+	arrays[Mesh.ARRAY_NORMAL] = normals
+	arrays[Mesh.ARRAY_TEX_UV] = uvs
 
-		# uv_offset moves to the right tile, uv_scale sizes it to one tile
-		preview_material.uv1_offset = Vector3(
-			face_data["uv"].x * tile_u,
-			face_data["uv"].y * tile_v,
-			0)
-		preview_material.uv1_scale = Vector3(tile_u, tile_v, 1)
-
-		mesh_instance.material_override = preview_material
-
-		#var preview_material = StandardMaterial3D.new()
-		#preview_material.albedo_texture = atlas
-		#preview_material.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
-#
-		#var atlas_tex = AtlasTexture.new()
-		#atlas_tex.atlas = atlas
-		#atlas_tex.filter_clip = true
-		#atlas_tex.region = Rect2(
-			#face_data["uv"].x * texture_size,
-			#face_data["uv"].y * texture_size,
-		#texture_size,
-		#texture_size)
-		#preview_material.albedo_texture = atlas_tex
-		#
-		#print("Face: ", face_data["label"], " uv: ", face_data["uv"], " region: ", Rect2(
-			#face_data["uv"].x * texture_size,
-			#face_data["uv"].y * texture_size,
-			#texture_size,
-			#texture_size))
-		#mesh_instance.material_override = preview_material
+	var new_mesh = ArrayMesh.new()
+	new_mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	new_mesh.surface_set_material(0, material)
+	mesh_instance.mesh = new_mesh

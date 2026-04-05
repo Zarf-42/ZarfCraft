@@ -22,6 +22,8 @@ Settings="*uid://chydrt4ei17s"
 PauseManager="*uid://04ulj10p1rq"
 SaveManager="*uid://b7p7u3xfdfk8s"
 UiManager="*uid://b5id7ibap37pt"
+BlockRegistry="*uid://vluwe22yko8e"
+Cube="*uid://ds0h2jeo2l3jg"
 
 [editor]
 
@@ -119,6 +121,10 @@ scroll_down={
 "events": [Object(InputEventMouseButton,"resource_local_to_scene":false,"resource_name":"","device":-1,"window_id":0,"alt_pressed":false,"shift_pressed":false,"ctrl_pressed":false,"meta_pressed":false,"button_mask":16,"position":Vector2(202, 26),"global_position":Vector2(216, 99),"factor":1.0,"button_index":5,"canceled":false,"pressed":true,"double_click":false,"script":null)
 ]
 }
+
+[network]
+
+limits/debugger/max_chars_per_second=3276800
 
 [physics]
 

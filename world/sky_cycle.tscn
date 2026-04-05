@@ -50,6 +50,9 @@ sky_material = SubResource("ShaderMaterial_fyhu2")
 [sub_resource type="Environment" id="Environment_fyhu2"]
 background_mode = 2
 sky = SubResource("Sky_75cdo")
+ambient_light_source = 2
+ambient_light_color = Color(0.8446559, 0.00013890535, 0.70885265, 1)
+ambient_light_sky_contribution = 0.5
 tonemap_mode = 2
 glow_enabled = true
 adjustment_enabled = true
@@ -179,6 +182,18 @@ tracks/9/keys = {
 "update": 0,
 "values": [0.55000000819566]
 }
+tracks/10/type = "value"
+tracks/10/imported = false
+tracks/10/enabled = true
+tracks/10/path = NodePath(".:environment:ambient_light_color")
+tracks/10/interp = 1
+tracks/10/loop_wrap = true
+tracks/10/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 0,
+"values": [Color(0.8446559, 0.00013890535, 0.70885265, 1)]
+}
 
 [sub_resource type="Animation" id="Animation_0evix"]
 resource_name = "SkyCycle"
@@ -203,7 +218,7 @@ tracks/1/path = NodePath(".:environment:sky:sky_material:shader_parameter/bottom
 tracks/1/interp = 1
 tracks/1/loop_wrap = true
 tracks/1/keys = {
-"times": PackedFloat32Array(0, 45, 180, 540, 640, 680, 720.13336, 750, 1080, 1390, 1415),
+"times": PackedFloat32Array(0, 45, 180, 540, 640, 680, 720, 750, 1080, 1390, 1415),
 "transitions": PackedFloat32Array(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1),
 "update": 0,
 "values": [Color(0.7921569, 0.4745098, 0.6039216, 1), Color(0, 0.32941177, 0.96862745, 1), Color(0, 0.32941177, 0.96862745, 1), Color(0, 0.32941177, 0.96862745, 1), Color(0, 0.32941177, 0.96862745, 1), Color(0.7921569, 0.4745098, 0.6039216, 1), Color(0.7921569, 0.4745098, 0.6039216, 1), Color(0.02745098, 0.10196078, 0.25098038, 1), Color(0.014300002, 0.052866682, 0.13, 1), Color(0.02745098, 0.101960786, 0.2509804, 1), Color(0.7921569, 0.4745098, 0.6039216, 1)]
@@ -239,7 +254,7 @@ tracks/4/path = NodePath(".:environment:sky:sky_material:shader_parameter/clouds
 tracks/4/interp = 1
 tracks/4/loop_wrap = true
 tracks/4/keys = {
-"times": PackedFloat32Array(0, 40, 640, 680, 720, 750, 1080, 1390, 1415),
+"times": PackedFloat32Array(0, 45, 640, 680, 720, 750, 1080, 1390, 1415),
 "transitions": PackedFloat32Array(1, 1, 1, 1, 1, 1, 1, 1, 1),
 "update": 0,
 "values": [Color(1, 0.7607843, 0.6745098, 1), Color(1, 1, 1, 1), Color(1, 1, 1, 1), Color(1, 0.7607843, 0.6745098, 1), Color(1, 0.7607843, 0.6745098, 1), Color(0.22745097, 0.4470588, 1, 1), Color(0.14750001, 0.16800001, 0.25, 1), Color(0.22745098, 0.44705883, 1, 1), Color(1, 0.7607843, 0.6745098, 1)]
@@ -304,6 +319,18 @@ tracks/9/keys = {
 "update": 0,
 "values": [0.10000000149012, 0.5000000074506, 1.0, 0.20000000298024, 0.0, 0.0, 0.10000000149012]
 }
+tracks/10/type = "value"
+tracks/10/imported = false
+tracks/10/enabled = true
+tracks/10/path = NodePath(".:environment:ambient_light_color")
+tracks/10/interp = 1
+tracks/10/loop_wrap = true
+tracks/10/keys = {
+"times": PackedFloat32Array(0, 45, 180, 540, 640, 680, 720, 750, 1080, 1390, 1415),
+"transitions": PackedFloat32Array(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1),
+"update": 0,
+"values": [Color(0.7921569, 0.4745098, 0.6039216, 1), Color(0, 0.32941177, 0.96862745, 1), Color(0, 0.32941177, 0.96862745, 1), Color(0, 0.32941177, 0.96862745, 1), Color(0, 0.32941177, 0.96862745, 1), Color(0.7921569, 0.4745098, 0.6039216, 1), Color(0.7921569, 0.4745098, 0.6039216, 1), Color(0.02745098, 0.101960786, 0.2509804, 1), Color(0.02745098, 0.101960786, 0.2509804, 1), Color(0.027450979, 0.101960786, 0.2509804, 1), Color(0.7921569, 0.4745098, 0.6039216, 1)]
+}
 
 [sub_resource type="AnimationLibrary" id="AnimationLibrary_nsqii"]
 _data = {
@@ -320,5 +347,5 @@ libraries/ = SubResource("AnimationLibrary_nsqii")
 autoplay = &"SkyCycle"
 
 [node name="Sun" type="DirectionalLight3D" parent="." unique_id=1154327078]
-transform = Transform3D(1, 0, 0, 0, 0.9848076, -0.17364816, 0, 0.17364816, 0.9848076, 0, 0, 0)
+transform = Transform3D(1, 0, 0, 0, 0.98480743, -0.17364813, 0, 0.17364813, 0.98480743, 0, 0, 0)
 shadow_enabled = true

@@ -14,7 +14,7 @@ func _ready() -> void: # Check that we can read/write to the Save directory
 		DirAccess.make_dir_absolute(SAVE_DIR)
 
 func save_world(world_name: String) -> void:
-	var start = Time.get_ticks_msec() # For benchmarking
+	#var start = Time.get_ticks_msec() # For benchmarking
 	# Set the folder for the world we're saving
 	var world_dir = SAVE_DIR + world_name + "/"
 	
@@ -34,7 +34,7 @@ func save_world(world_name: String) -> void:
 	var eyes = EventBus.player.get_node("Head/PlayerEyes")
 	var world_data = {
 		"world_name": world_name,
-		"seed": EventBus.chunk_manager.altitude_generator.seed,
+		"seed": EventBus.world_manager.altitude_generator.seed,
 		"player_position": {
 				"x":pos.x,
 				"y":pos.y,
@@ -50,20 +50,20 @@ func save_world(world_name: String) -> void:
 	file.store_string(JSON.stringify(world_data, "\t"))
 	file.close()
 	save_chunks(world_name)
-	print("Save completed in ", Time.get_ticks_msec() - start, "ms")
+	#print("Save completed in ", Time.get_ticks_msec() - start, "ms")
 
 # Saving terrain data
 func save_chunks(world_name: String) -> void:
-	var chunks = EventBus.chunk_manager.chunks
+	var chunks = EventBus.world_manager.chunks
 	var terrain_dir = SAVE_DIR + world_name + "/terrain/"
-	var saved_count = 0 # Keeps track of how many chunks have been saved so far
+	var _saved_count = 0 # Keeps track of how many chunks have been saved so far
 	
 	for chunk_pos in chunks:
 		var chunk = chunks[chunk_pos]
 		# Skip loading unmodified chunks
 		if chunk.dirty_voxels.is_empty():
 			continue
-		saved_count += 1
+		_saved_count += 1
 		var chunk_data = {}
 
 		# Convert voxels to a saveable format
@@ -86,13 +86,13 @@ func save_chunks(world_name: String) -> void:
 		var file = FileAccess.open(terrain_dir + filename, FileAccess.WRITE)
 		file.store_string(JSON.stringify(chunk_data))
 		file.close()
-	print("Saved %s chunks" % [saved_count])
+	#print("Saved %s chunks" % [saved_count])
 
 func load_world() -> Dictionary:
 	var world_dir = SAVE_DIR + world_to_load + "/"
 	var file = FileAccess.open(world_dir + "world.json", FileAccess.READ)
 	if file == null:
-		print("Couldn't load ", world_to_load)
+		#print("Couldn't load ", world_to_load)
 		return {}
 	var world_data = JSON.parse_string(file.get_as_text())
 	file.close()
@@ -102,7 +102,7 @@ func load_chunks() -> void:
 	var terrain_dir = SAVE_DIR + world_to_load + "/terrain/"
 	var dir = DirAccess.open(terrain_dir)
 	if dir == null:
-		print("Couldn't load ", world_to_load, ", no terrain directory found.")
+		#print("Couldn't load ", world_to_load, ", no terrain directory found.")
 		return
 	
 	dir.list_dir_begin()
@@ -131,9 +131,9 @@ func load_chunk(filepath: String, filename: String) -> void:
 	file.close()
 	
 	# Find the chunk in the chunk manager
-	var chunk = EventBus.chunk_manager.chunks.get(chunk_pos, null)
+	var chunk = EventBus.world_manager.chunks.get(chunk_pos, null)
 	if chunk == null:
-		print("Chunk at ", chunk_pos, " not found.")
+		#print("Chunk at ", chunk_pos, " not found.")
 		return
 	
 	# Overwrite with saved data

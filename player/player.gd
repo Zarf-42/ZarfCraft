@@ -5,7 +5,7 @@ signal add_block
 signal remove_block
 signal scroll
 
-var chunk_manager: ChunkManager
+var world_manager: WorldManager
 
 # Radians per Pixel; needs VERY small values
 @export var mouse_sensitivity: float = Settings.mouse_sensitivity / 100
@@ -79,9 +79,10 @@ func _physics_process(delta: float) -> void:
 	var input_dir := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
 	var direction
 	# Handle Turbo, if player holds down Ctrl and Shift while flying
-	if Input.is_action_pressed("run") && Input.is_action_pressed("crouch") && flying == true:
-		velocity = direction * SPEED * 20 * running
-	if flying:
+	if Input.is_action_pressed("run") && Input.is_action_pressed("jump") && flying:
+		direction = (eyes.global_transform.basis * Vector3(input_dir.x, 0, input_dir.y)).normalized()
+		velocity = direction * SPEED * 10 * running
+	elif flying:
 		direction = (eyes.global_transform.basis * Vector3(input_dir.x, 0, input_dir.y)).normalized()
 		velocity = direction * SPEED * 2 * running
 	else:
@@ -116,9 +117,9 @@ func _unhandled_input(event: InputEvent) -> void:
 	
 	if event.is_action_pressed("toggle_transparent"):
 		EventBus.debug_transparent = !EventBus.debug_transparent
-		print("Requested toggle of transparency")
-		for chunk_pos in EventBus.chunk_manager.chunks:
-			EventBus.chunk_manager.chunks[chunk_pos].commit_visuals()
+		#print("Requested toggle of transparency")
+		for chunk_pos in EventBus.world_manager.chunks:
+			EventBus.world_manager.chunks[chunk_pos].commit_visuals()
 
 func spawn() -> void:
 	if Settings.player_is_spawned == true:
@@ -128,16 +129,16 @@ func spawn() -> void:
 	
 	var spawn_chunk: Chunk = null
 	for layer in range(num_layers - 1, -1, -1):
-		var spawn_chunk_candidate: Chunk = EventBus.chunk_manager.chunks.get(Vector3i(0, layer, 0), null)
+		var spawn_chunk_candidate: Chunk = EventBus.world_manager.chunks.get(Vector3i(0, layer, 0), null)
 		if spawn_chunk_candidate != null and not spawn_chunk_candidate.voxels.is_empty():
 			spawn_chunk = spawn_chunk_candidate
 			break
 	if spawn_chunk == null:
-		print("Unable to find spawn chunk, retrying...")
+		#print("Unable to find spawn chunk, retrying...")
 		await get_tree().process_frame
 		spawn()
 		
-	print("spawn_chunk voxels: ", spawn_chunk.voxels.size())
+	#print("spawn_chunk voxels: ", spawn_chunk.voxels.size())
 		
 	# Find any horizontal location within the chunk, with the -1 helping to stay inside the chunk
 	var random_location_x: int = randi_range(0, chunk_size - 1)
@@ -175,11 +176,11 @@ func spawn() -> void:
 					player.global_position = Vector3(random_location_x, world_y + 1, random_location_z)
 					Settings.player_is_spawned = true
 					visible = true
-					print("Spawned player at ", player.global_position)
+					#print("Spawned player at ", player.global_position)
 					return
 	
 	# If no valid spawn point is found, try again:
-	print("Unable to find valid spawn point, retrying...")
+	#print("Unable to find valid spawn point, retrying...")
 	Settings.player_is_spawned = false
 	spawn()
 
@@ -187,7 +188,7 @@ func load_spawn() -> void: # For loading a savegame
 	found_chunk = null
 	var world_data = SaveManager.load_world()
 	if world_data.is_empty():
-		print("world_data empty, falling back to spawn()")
+		#print("world_data empty, falling back to spawn()")
 		spawn() # Fall back to the normal spawn function if the world doesn't load correctly
 		return
 	
@@ -198,11 +199,11 @@ func load_spawn() -> void: # For loading a savegame
 	var chunk_x = int(floor(target_pos.x / Settings.chunk_size))
 	var chunk_z = int(floor(target_pos.z / Settings.chunk_size))
 	var chunk_key = Vector3i(chunk_x, 0, chunk_z)
-	while not EventBus.chunk_manager.chunks.has(chunk_key): # Attempt to prevent player spawning
+	while not EventBus.world_manager.chunks.has(chunk_key): # Attempt to prevent player spawning
 		# until the chunk they spawn in is ready
 		await get_tree().process_frame
 
-	var spawn_chunk = EventBus.chunk_manager.chunks.get(chunk_key, null)
+	var spawn_chunk = EventBus.world_manager.chunks.get(chunk_key, null)
 
 	
 	if spawn_chunk:
@@ -228,11 +229,11 @@ func load_spawn() -> void: # For loading a savegame
 	var has_diffs = FileAccess.file_exists(chunk_filepath)
 	
 	if found_chunk and has_diffs:
-		print("Waiting for collision after diffs...")
+		#print("Waiting for collision after diffs...")
 		await found_chunk.collision_ready
 
 	player.global_position = target_pos
-	print("Player reloaded at ", player.global_position)
+	#print("Player reloaded at ", player.global_position)
 	head.rotation.y = world_data["player_rotation"]["head_y"]
 	eyes.rotation.x = world_data["player_rotation"]["eyes_x"]
 	Settings.player_is_spawned = true

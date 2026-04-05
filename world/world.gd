@@ -2,7 +2,7 @@ extends Node3D
 
 # Following this tutorial: https://www.youtube.com/watch?v=_uGtO7sk-_c
 @onready var player: CharacterBody3D = $Player
-@onready var chunk_manager: ChunkManager = $ChunkManager
+@onready var world_manager: WorldManager = $WorldManager
 
 # I think this initializes the array that will later contain the coordinate of every cube in our terrain.
 var terrain_data: Dictionary[Vector3, Color] = {}
@@ -25,7 +25,7 @@ func _ready() -> void:
 	chunks_loaded = false
 
 func _spawn() -> void:
-	#print("_spawn called, is_loading: ", SaveManager.is_loading, " player_is_spawned: ", Settings.player_is_spawned)
+	##print("_spawn called, is_loading: ", SaveManager.is_loading, " player_is_spawned: ", Settings.player_is_spawned)
 	if Settings.player_is_spawned == false:
 		if SaveManager.is_loading:
 			player.load_spawn()
@@ -38,12 +38,12 @@ func _spawn() -> void:
 func quit_game() -> void:
 	# Here, we need to shut down all threads and close the program gracefully. This should either
 	# eventually offer a Save option, or live alongside a Save option.
-	# For each thread, we call a function to stop itself within the chunk_manager file.
-	chunk_manager.kill_thread = true
+	# For each thread, we call a function to stop itself within the world_manager file.
+	world_manager.kill_thread = true
 	for threads in Settings.threads:
 		if threads.is_started():
 			threads.wait_to_finish()
-	EventBus.chunk_manager = null
+	EventBus.world_manager = null
 	EventBus.player = null
 	Settings.player_is_spawned = false
 	PauseManager.unpause()

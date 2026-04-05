@@ -6,10 +6,10 @@ extends Node
 
 # These were present when World was the main scene. Now, Main Menu is the main scene, so these lines
 # error out. Instead, we will assign them in their respective scripts, which load when the World loads.
-#@onready var chunk_manager = get_parent().get_node("World").get_node("ChunkManager")
+#@onready var world_manager = get_parent().get_node("World").get_node("WorldManager")
 #@onready var player: CharacterBody3D = get_parent().get_node("World").get_node("Player")
 
-var chunk_manager: ChunkManager # TODO: This has been changed to WorldManager. Get rid?
+var world_manager: WorldManager # TODO: This has been changed to WorldManager. Get rid?
 var player: CharacterBody3D
 var debug_transparent: bool = false
 

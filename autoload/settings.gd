@@ -15,7 +15,7 @@ var mouse_mode = Input.MOUSE_MODE_CAPTURED # Prevents the mouse from exiting the
 
 var threads: Array = []
 
-@export var chunk_render_distance: int = 8-2 # Currently, this is how far out we generate chunks, not
+@export var chunk_render_distance: int = 4 # Currently, this is how far out we generate chunks, not
 	# the render distance.
 @export var mouse_sensitivity: float = 0.27 # This is used as a multiplier somewhere, I think.
 @export var single_threaded: bool = false # Set this to true if you want to use only one thread.

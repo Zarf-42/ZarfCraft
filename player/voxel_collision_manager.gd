@@ -30,7 +30,7 @@ func _ready() -> void:
 func _physics_process(_delta: float) -> void:
 	if not Settings.player_is_spawned:
 		return
-	if EventBus.chunk_manager == null:
+	if EventBus.world_manager == null:
 		return
 
 	# Get the block position of the player's feet
@@ -59,12 +59,12 @@ func _physics_process(_delta: float) -> void:
 			body.get_child(0).disabled = true
 
 func is_solid(world_pos: Vector3i) -> bool:
-	var chunk_manager = EventBus.chunk_manager
+	var world_manager = EventBus.world_manager
 	var chunk_x: int = int(floor(float(world_pos.x) / Settings.chunk_size))
 	var chunk_z: int = int(floor(float(world_pos.z) / Settings.chunk_size))
 	var chunk_layer: int = int(floor(float(world_pos.y) / Settings.chunk_height))
 	var chunk_key: Vector3i = Vector3i(chunk_x, chunk_layer, chunk_z)
-	var chunk = chunk_manager.chunks.get(chunk_key, null)
+	var chunk = world_manager.chunks.get(chunk_key, null)
 	if chunk == null:
 		return false
 	var local_pos: Vector3i = Vector3i(

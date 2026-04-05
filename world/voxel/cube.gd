@@ -78,8 +78,8 @@ func _ready() -> void:
 		face_vertex_uvs[face] = []
 		for i in range(8):
 			face_vertex_uvs[face].append(compute_uv_for_vertex(face, i))
-		if face == Cube.Face.BACK or face == Cube.Face.RIGHT:
-			print("face_vertex_uvs[", face, "]: ", face_vertex_uvs[face])
+		#if face == Cube.Face.BACK or face == Cube.Face.RIGHT:
+			#print("face_vertex_uvs[", face, "]: ", face_vertex_uvs[face])
 			
 static func compute_uv_for_vertex(face: int, vertex_index: int) -> Vector2:
 	var v: Vector3 = VERTICES[vertex_index]

@@ -76,10 +76,13 @@ var needs_rebuild: bool = false
 
 # For fixing freeze caused by all chunks being generated on the main thread
 var was_generated_by_thread: bool = false
-# Timing results, read by ChunkManager after generate_mesh() returns
+# Timing results, read by WorldManager after generate_mesh() returns
 var stat_generate_mesh_us: int = 0
 var stat_add_face_us: int = 0
 var stat_add_face_count: int = 0
+var stat_generate_data_us: int = 0
+var stat_perface_mesh_us: int = 0
+var stat_transparent_mesh_us: int = 0
 
 func _process(_delta: float) -> void:
 	if needs_rebuild and not is_rebuilding:
@@ -118,7 +121,7 @@ func carve_caves(global_pos: Vector3, world_y: float, big_cave_noise: Noise, lon
 	var long_threshold = long_cave_density * surface_factor
 	
 	if abs(big_caves_a) < big_threshold and abs(big_caves_b) < big_threshold:
-		#print("Carving at y: ", world_y)
+		##print("Carving at y: ", world_y)
 		return true
 	if abs(long_caves_a) < long_threshold and abs(long_caves_b) < long_threshold:
 		return true
@@ -134,9 +137,9 @@ func get_bedrock_height(global_pos: Vector3, heightmap_noise: Noise) -> int:
 # need to record the location of each block, perhaps in a dictionary?
 func generate_data(chunk_size: int, chunk_height: int, heightmap_noise: Noise, big_cave_noise: Noise, long_cave_noise: Noise)  -> void:
 	# Apply any cross-chunk structure blocks registered for this chunk
-	var ccs_blocks: Array = EventBus.chunk_manager.claim_ccs(chunks_key)
-	if not ccs_blocks.is_empty():
-		print("Chunk ", chunks_key, " claimed ", ccs_blocks.size(), " CCS blocks")
+	var ccs_blocks: Array = EventBus.world_manager.claim_ccs(chunks_key)
+	#if not ccs_blocks.is_empty():
+		#print("Chunk ", chunks_key, " claimed ", ccs_blocks.size(), " CCS blocks")
 	for entry in ccs_blocks:
 		voxels[entry["world_pos"] - Vector3i(int(world_origin.x), int(world_origin.y), int(world_origin.z))] = entry["block"]
 	
@@ -149,7 +152,7 @@ func generate_data(chunk_size: int, chunk_height: int, heightmap_noise: Noise, b
 	var default_block = BlockRegistry.get_block(Settings.default_block)
 
 	if bedrock == null or grass == null or dirt == null or default_block == null:
-		print("WARNING: missing block types, skipping generation")
+		#print("WARNING: missing block types, skipping generation")
 		return
 
 	for x in range(chunk_size):
@@ -280,8 +283,8 @@ func generate_data(chunk_size: int, chunk_height: int, heightmap_noise: Noise, b
 						local_pos.z >= 0 and local_pos.z < chunk_size:
 					voxels[local_pos] = tree_blocks[world_pos]
 				else:
-					print("Sending to CCS: world_pos=", world_pos, " chunk position=", world_origin)
-					EventBus.chunk_manager.register_ccs(world_pos, tree_blocks[world_pos])
+					#print("Sending to CCS: world_pos=", world_pos, " chunk position=", world_origin)
+					EventBus.world_manager.register_ccs(world_pos, tree_blocks[world_pos])
 			 
 func generate_mesh() -> void:
 	if voxels.is_empty(): return
@@ -289,11 +292,58 @@ func generate_mesh() -> void:
 	var local_add_face_count: int = 0
 	var local_add_face_total: int = 0
 	
-	# Opaque blocks use the GreedyMesh class
-	GreedyMesh.mesh(voxels, vertices, normals, uvs, uv2s, number_of_textures_in_atlas)
+	## Time greedy mesh separately
+	#var t_greedy: int = Time.get_ticks_usec()
+	## Opaque blocks use the GreedyMesh class
+	#GreedyMesh.mesh(voxels, vertices, normals, uvs, uv2s, number_of_textures_in_atlas)
+	#stat_greedy_mesh_us = Time.get_ticks_usec() - t_greedy
 	
+	var t_perface: int = Time.get_ticks_usec()
+	for pos in voxels:
+		var block_type = voxels[pos]
+		if block_type.is_transparent:
+			continue
+		if not should_hide_face(pos, Vector3i(pos.x, pos.y, pos.z + 1), block_type):
+			add_face(Cube.Face.FRONT, pos, block_type)
+		if not should_hide_face(pos, Vector3i(pos.x, pos.y, pos.z - 1), block_type):
+			add_face(Cube.Face.BACK, pos, block_type)
+		if not should_hide_face(pos, Vector3i(pos.x - 1, pos.y, pos.z), block_type):
+			add_face(Cube.Face.LEFT, pos, block_type)
+		if not should_hide_face(pos, Vector3i(pos.x + 1, pos.y, pos.z), block_type):
+			add_face(Cube.Face.RIGHT, pos, block_type)
+		if not should_hide_face(pos, Vector3i(pos.x, pos.y + 1, pos.z), block_type):
+			add_face(Cube.Face.TOP, pos, block_type)
+		if not should_hide_face(pos, Vector3i(pos.x, pos.y - 1, pos.z), block_type):
+			add_face(Cube.Face.BOTTOM, pos, block_type)
+	stat_perface_mesh_us = Time.get_ticks_usec() - t_perface
+	
+	#var t_greedy: int = Time.get_ticks_usec()
+	#for pos in voxels:
+		#var block_type: BlockType = voxels[pos]
+		#if block_type.is_transparent:
+			#continue
+		#var neighbors: Array = [
+			#Vector3i(pos.x, pos.y, pos.z + 1),
+			#Vector3i(pos.x, pos.y, pos.z - 1),
+			#Vector3i(pos.x - 1, pos.y, pos.z),
+			#Vector3i(pos.x + 1, pos.y, pos.z),
+			#Vector3i(pos.x, pos.y + 1, pos.z),
+			#Vector3i(pos.x, pos.y - 1, pos.z),
+		#]
+		#var faces: Array = [
+			#Cube.Face.FRONT, Cube.Face.BACK,
+			#Cube.Face.LEFT, Cube.Face.RIGHT,
+			#Cube.Face.TOP, Cube.Face.BOTTOM,
+		#]
+		#for i in 6:
+			#if not should_hide_face(pos, neighbors[i], block_type):
+				#add_face(faces[i], pos, block_type)
+	#stat_greedy_mesh_us = Time.get_ticks_usec() - t_greedy
+
+	# Time transparent mesh separately
+	var t_transparent: int = Time.get_ticks_usec()
 	# Transparent blocks still use per-face for now.
-	var t3 = Time.get_ticks_usec()
+	#var t3 = Time.get_ticks_usec()
 	for pos in voxels:
 		var block_type = voxels[pos]
 		if not block_type.is_transparent:
@@ -311,15 +361,13 @@ func generate_mesh() -> void:
 		if not should_hide_face(pos, Vector3i(pos.x, pos.y - 1, pos.z), block_type):
 			add_face(Cube.Face.BOTTOM, pos, block_type)
 		
-	var t4 = Time.get_ticks_usec()
-	if benchmarking == true:
-		print("Voxel face creation: ", t4-t3, "ms")
-		face_time = 0
+	stat_transparent_mesh_us = Time.get_ticks_usec() - t_transparent
+
 	stat_generate_mesh_us = Time.get_ticks_usec() - start_time
 	stat_add_face_us = local_add_face_total
 	stat_add_face_count = local_add_face_count
 
-func should_hide_face(pos: Vector3i, neighbor_pos: Vector3i, current_block: BlockType) -> bool:
+func should_hide_face(_pos: Vector3i, neighbor_pos: Vector3i, current_block: BlockType) -> bool:
 	if not voxels.has(neighbor_pos):
 		return false  # Skip faces with no neighbors
 	var neighbor = voxels[neighbor_pos]
@@ -331,55 +379,44 @@ func should_hide_face(pos: Vector3i, neighbor_pos: Vector3i, current_block: Bloc
 	return true  # Neighbor is opaque,cull.
 
 func add_face(face: Cube.Face, pos: Vector3i, block: BlockType) -> void:
-	var t0: int
-	if benchmarking:
-		t0 = Time.get_ticks_msec()
-
 	var offset: Vector3 = Vector3(pos)
 	var base_verts: PackedVector3Array = Cube.precomp_vertices[face]
-	
-	if base_verts.is_empty():
-		#print("precomp_vertices[", face, "] is empty!")
-		#print("precomp_vertices keys: ", Cube.precomp_vertices.keys())
-		#print("precomp_vertices size: ", Cube.precomp_vertices.size())
-		return
-	
 	var base_norms: PackedVector3Array = Cube.precomp_normals[face]
+	#var baked: PackedVector2Array = block.baked_uvs[face]
+	
+	var raw_uvs: PackedVector2Array = PackedVector2Array()
+	for index in Cube.precomp_indices[face]:
+		raw_uvs.append(Cube.face_vertex_uvs[face][index])
+
 
 	var uv_offset: Vector2
 	match face:
 		Cube.Face.TOP:    uv_offset = block.uv_top
 		Cube.Face.BOTTOM: uv_offset = block.uv_bottom
-		_:           uv_offset = block.uv_side
+		_:                uv_offset = block.uv_side
+	var tile_x: float = uv_offset.x / number_of_textures_in_atlas.x
+	var tile_w: float = 1.0 / number_of_textures_in_atlas.x
+	var tile_uv2: Vector2 = Vector2(tile_x, tile_w)
 
 	if block.is_transparent:
 		for i in 6:
 			transparent_vertices.append(base_verts[i] + offset)
 		transparent_normals.append_array(base_norms)
-		for i in 6:
-			var index: int = Cube.FACE_INDICES[face][i / 3][i % 3]
-			transparent_uvs.append(
-				(Cube.face_vertex_uvs[face][index] + uv_offset) / number_of_textures_in_atlas
-			)
+		transparent_uvs.append_array(block.baked_uvs[face])
 	else:
 		for i in 6:
 			vertices.append(base_verts[i] + offset)
 		normals.append_array(base_norms)
+		uvs.append_array(raw_uvs)
 		for i in 6:
-			var index: int = Cube.FACE_INDICES[face][i / 3][i % 3]
-			uvs.append(
-				(Cube.face_vertex_uvs[face][index] + uv_offset) / number_of_textures_in_atlas
-			)
-
-	if benchmarking:
-		face_time += Time.get_ticks_msec() - t0
+			uv2s.append(tile_uv2)
 
 func commit_mesh() -> void:
 	# This used to be the main function that generated chunks. Now it generates the initial chunks
 	# and fires a signal when the spawn point is ready.
 	commit_visuals()
-	EventBus.chunk_manager.request_collision_commit.call_deferred(self)
-	var chunk_height = Settings.chunk_height
+	EventBus.world_manager.request_collision_commit.call_deferred(self)
+	#var chunk_height = Settings.chunk_height
 	
 	# This makes sure that the player's spawn point is ready, but doesn't send the signal unless the
 	# Surface chunk in that XZ coordinate is the one that's ready.
@@ -408,7 +445,7 @@ func commit_visuals() -> void:
 		mesh_instance.mesh = null
 		return
 
-	var start = Time.get_ticks_msec()
+	#var start = Time.get_ticks_msec()
 	var new_mesh = ArrayMesh.new()
 
 	if not snap_vertices.is_empty():
@@ -432,8 +469,8 @@ func commit_visuals() -> void:
 
 	mesh_instance.mesh = new_mesh
 
-	if benchmarking == true:
-		print("Commit Visuals: %s ms" % (Time.get_ticks_msec() - start))
+	#if benchmarking == true:
+		#print("Commit Visuals: %s ms" % (Time.get_ticks_msec() - start))
 
 # This is to address lag when adding or removing blocks.
 func request_rebuild() -> void:
@@ -443,10 +480,10 @@ func request_rebuild() -> void:
 func threaded_rebuild() -> void:
 	if regen_thread.is_started():
 		regen_thread.wait_to_finish()
-	var cached_position = position
+	#var cached_position = position
 	regen_thread = Thread.new()
 	regen_thread.start(func():
-		#print("threaded_rebuild running on chunk at ", cached_position)
+		##print("threaded_rebuild running on chunk at ", cached_position)
 		regen_mutex.lock()
 		vertices.clear()
 		normals.clear()

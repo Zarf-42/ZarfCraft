@@ -6,7 +6,7 @@ extends Label
 @onready var looking_at: Label = $"."
 @onready var block_normal_label: Label = $"../BlockNormal"
 @onready var cursor_location: Label = $"../CursorLocation"
-@onready var chunk_manager: ChunkManager = $"../../../../../../../ChunkManager"
+@onready var world_manager: WorldManager = $"../../../../../../../WorldManager"
 @onready var focus_thingy: MeshInstance3D = $"../../../../../../FocusThingy"
 @onready var chunk: Label = $"../Chunk"
 @onready var type: Label = $"../Type"
@@ -64,7 +64,7 @@ func get_target(_collision_point):
 	var chunk_z: int = int(floor(float(current_block.z) / Settings.chunk_size))
 	var chunk_layer: int = int(floor(float(current_block.y) / Settings.chunk_height))
 	var chunk_key: Vector3i = Vector3i(chunk_x, chunk_layer, chunk_z)
-	var current_chunk: Chunk = chunk_manager.chunks.get(chunk_key, null)
+	var current_chunk: Chunk = world_manager.chunks.get(chunk_key, null)
 
 	if current_chunk != null:
 		chunk.text = "Chunk: " + current_chunk.name

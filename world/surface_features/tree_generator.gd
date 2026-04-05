@@ -8,15 +8,15 @@ class_name TreeGenerator
 
 const TREE_CHANCE: int = 100  # 1 in N chance per eligible grass block
 
-static func should_place_tree(world_x: int, world_z: int, seed: int) -> bool:
-	var tree_placement_hash: int = hash(Vector3i(world_x, seed, world_z))
+static func should_place_tree(world_x: int, world_z: int, world_seed: int) -> bool:
+	var tree_placement_hash: int = hash(Vector3i(world_x, world_seed, world_z))
 	return (tree_placement_hash % TREE_CHANCE) == 0
 
 static func generate_tree(
 		tree_type: TreeType,
 		surface_y: int, world_x: int, world_z: int,
 		chunk_voxels: Dictionary, chunk_pos: Vector3,
-		chunk_size: int, chunk_height: int) -> Dictionary:
+		_chunk_size: int, chunk_height: int) -> Dictionary:
 
 	var log_block: BlockType = BlockRegistry.get_block(tree_type.log_block_name)
 	var leaves_block: BlockType = BlockRegistry.get_block(tree_type.leaves_block_name)
@@ -29,7 +29,7 @@ static func generate_tree(
 	var tree_top: int = surface_y + trunk_height + leaf_radius + 1
 
 	# Check vertical clearance
-	#print("Trying tree at ", world_x, ",", world_z, " surface_y=", surface_y, " trunk_height=", trunk_height)
+	##print("Trying tree at ", world_x, ",", world_z, " surface_y=", surface_y, " trunk_height=", trunk_height)
 	for y in range(surface_y, tree_top + 1):
 		var local_y: int = y - int(chunk_pos.y)
 		if local_y >= 0 and local_y < chunk_height:
@@ -37,7 +37,7 @@ static func generate_tree(
 					world_x - int(chunk_pos.x),
 					local_y,
 					world_z - int(chunk_pos.z))):
-				#print("  Treegen was blocked at y=", y, " local_y=", local_y)
+				##print("  Treegen was blocked at y=", y, " local_y=", local_y)
 				return {}
 
 	# Clearance passed — build the tree

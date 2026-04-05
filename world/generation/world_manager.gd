@@ -1,4 +1,4 @@
-class_name ChunkManager extends Node
+class_name WorldManager extends Node
 
 # World Manager defines the order in which chunks are generated. It splits this task among the available threads.
 
@@ -23,6 +23,7 @@ var kill_thread: bool = false
 
 # For benchmarking chunk gen times.
 var is_benchmarking: bool = true
+var stat_generation_start_time: int = 0
 var total_visual_time: int = 0
 var visual_commit_count: int = 0
 var stop_timing_chunk_generation: bool = false
@@ -33,8 +34,14 @@ var stat_add_face_total: int = 0
 var stat_add_face_count: int = 0
 var stat_chunks_expected: int = 0
 var stat_chunks_reported: int = 0
+var stat_generation_complete: bool = false
+var stat_generate_data_total: int = 0
+var stat_generate_data_count: int = 0
+var stat_perface_mesh_total: int = 0
+var stat_transparent_mesh_total: int = 0
 
 var world_seed: int = 0
+var surface_level = Settings.sea_level
 var atlas_tiles: Vector2 = Vector2.ZERO
 
 # For Cross-Chunk structures like trees and caves
@@ -42,6 +49,7 @@ var pending_structures: Dictionary = {}  # Vector3i chunk_key -> Array of {world
 var pending_structures_mutex: Mutex = Mutex.new()
 
 var loading_threads: Array = Settings.threads
+var generation_thread: Thread = Thread.new()
 
 # We've sped up chunk generation so much that the act of placing all available chunks in the scene
 # is slowing things down to the point where it feels like the game is frozen when we first start.
@@ -62,15 +70,16 @@ func _process(_delta: float) -> void:
 		total_visual_time += Time.get_ticks_msec() - start_time
 		visual_commit_count += 1
 		stop_timing_chunk_generation = false
-
-		var surface_level = Settings.sea_level / (Settings.world_height / Settings.chunk_height)
-		if chunk.global_position == Vector3(0.0, Settings.sea_level, 0.0) and Settings.player_is_spawned == false:
+		#TODO: Should I replace Settings.sea_level with surface_level in the If statement below?
+		
+		if chunk.global_position == Vector3(0.0, surface_level, 0.0) and Settings.player_is_spawned == false:
 			EventBus.spawn_chunk_is_ready.emit()
 
 	if not pending_structures.is_empty():# and chunk_visual_queue.is_empty():
 		apply_late_ccs()
 					
 func _ready() -> void:
+	print("Surface level: ", (Settings.world_height / Settings.chunk_height))
 	BlockRegistry.register(block_types)
 	
 	var temp_chunk: Chunk = chunk_class.instantiate()  # just to access its precomp tables
@@ -97,60 +106,41 @@ func _ready() -> void:
 	player.remove_block.connect(self._on_remove_block)
 
 	# This tells everybody when the Chunk Manager (I.E. this file) is ready
-	EventBus.chunk_manager = self
+	EventBus.world_manager = self
 	
 	var chunks_to_generate: Array = generate_terrain_infinite()
 	
-	# Count the total chunks across all threads, plus the 3 spawn chunks
-	stat_chunks_expected = 3  # spawn_point_chunks
+	# Count the total chunks across all threads, plus all of the chunks in the spawn chunk's column
+	var num_layers: int = Settings.world_height / Settings.chunk_height
+	stat_chunks_expected = num_layers  # spawn column chunks
 	for thread_batch in chunks_to_generate:
 		stat_chunks_expected += thread_batch.size()
 	
-	multithreaded_terrain_generation(chunks_to_generate, loading_threads)
+	stat_generation_start_time = Time.get_ticks_msec()
+	generation_thread.start(func(): multithreaded_terrain_generation(chunks_to_generate, loading_threads))
 	
 	# Tell other scenes we're ready
 	EventBus.blocks_ready.emit(block_types)
 
 func generate_terrain_infinite() -> Array:
-	# Initialize heightmap noise
 	altitude_generator.noise_type = FastNoiseLite.TYPE_SIMPLEX
 	altitude_generator.frequency = 0.003
-	
-	# Initialize cave noise for big open caves
 	big_cave_generator.noise_type = FastNoiseLite.TYPE_PERLIN
 	big_cave_generator.frequency = 0.05
-	big_cave_generator.seed = altitude_generator.seed + 1  # different seed from terrain
-	
-	# Initialize noise for long, thin caves
+	big_cave_generator.seed = altitude_generator.seed + 1
 	long_cave_generator.noise_type = FastNoiseLite.TYPE_PERLIN
 	long_cave_generator.frequency = 0.08
-	long_cave_generator.seed = altitude_generator.seed + 2  # different seed from terrain and big caves
+	long_cave_generator.seed = altitude_generator.seed + 2
 
-	var chunk_queue = get_chunk_queue()
 	var num_threads: int = loading_threads.size()
 	var chunk_coordinates: Array = []
-	
 	for i in range(num_threads):
 		chunk_coordinates.append([])
-	
-	# Group chunks by XY column first, then distribute columns across threads
-	var columns: Dictionary = {}
-	# First loop — just build the columns
-	for chunk in chunk_queue:
-		var col_key: Vector2i = Vector2i(chunk.x, chunk.z)
-		if not columns.has(col_key):
-			columns[col_key] = []
-		columns[col_key].append(chunk)
 
-	# Second loop — now sort each completed column
-	for col_key in columns:
-		columns[col_key].sort_custom(func(a, b): return a.y < b.y)
+	var chunk_queue = get_chunk_queue()
+	for i in range(chunk_queue.size()):
+		chunk_coordinates[i % num_threads].append(chunk_queue[i])
 
-	# Distribute whole columns across threads
-	var col_index: int = 0
-	for col_key in columns:
-		chunk_coordinates[col_index % num_threads].append_array(columns[col_key])
-		col_index += 1    
 	return chunk_coordinates
 
 # 3/28.26: Re-wrote this method to be able to do an arbitrary number of layers. Used to be limited to
@@ -187,7 +177,7 @@ func generate_chunks(pos) -> void:
 		if SaveManager.is_loading:
 			SaveManager.apply_chunk_diffs(new_chunk)
 		new_chunk.generate_mesh()
-		report_stats.call_deferred(new_chunk.stat_generate_mesh_us, new_chunk.stat_add_face_us, new_chunk.stat_add_face_count)
+		report_stats.call_deferred(new_chunk.stat_generate_mesh_us, new_chunk.stat_add_face_us, new_chunk.stat_add_face_count, new_chunk.stat_generate_data_us, new_chunk.stat_perface_mesh_us, new_chunk.stat_transparent_mesh_us)
 		
 		new_chunk.was_generated_by_thread = true
 		new_chunk.name = str(new_chunk.world_origin / Vector3i(chunk_size, chunk_height, chunk_size))
@@ -202,7 +192,7 @@ func register_ccs(world_pos: Vector3i, block: BlockType) -> void:
 	var chunk_layer: int = int(floor(float(world_pos.y) / Settings.chunk_height))
 	var chunk_z: int = int(floor(float(world_pos.z) / Settings.chunk_size))
 	var chunk_key: Vector3i = Vector3i(chunk_x, chunk_layer, chunk_z)
-	#print("register_ccs: world_pos=", world_pos, " chunk_key=", chunk_key)
+	##print("register_ccs: world_pos=", world_pos, " chunk_key=", chunk_key)
 
 	pending_structures_mutex.lock()
 	if not pending_structures.has(chunk_key):
@@ -215,8 +205,8 @@ func claim_ccs(chunk_key: Vector3i) -> Array:
 	var result: Array = pending_structures.get(chunk_key, [])
 	pending_structures.erase(chunk_key)
 	pending_structures_mutex.unlock()
-	if chunk_key == Vector3i(-2, -2, 10):
-		print("claim_ccs: key=", chunk_key, " found=", result.size(), " entries")
+	#if chunk_key == Vector3i(-2, -2, 10):
+		#print("claim_ccs: key=", chunk_key, " found=", result.size(), " entries")
 	return result
 
 func add_to_commit_queue(chunk: Chunk) -> void:
@@ -225,6 +215,48 @@ func add_to_commit_queue(chunk: Chunk) -> void:
 	if SaveManager.is_loading:
 		SaveManager.apply_chunk_diffs(chunk)
 
+# We might be able to replace this with Settings.sea_level
+func estimate_surface_layer(grid_x: int, grid_z: int) -> int:
+	var world_x: float = grid_x * chunk_size + chunk_size * 0.5
+	var world_z: float = grid_z * chunk_size + chunk_size * 0.5
+	var rand: float = ((
+		altitude_generator.get_noise_2d(world_x, world_z) + 0.6 *
+		altitude_generator.get_noise_2d(world_x * 2, world_z * 2) + 0.25 *
+		altitude_generator.get_noise_2d(world_x * 4, world_z * 4)
+		) / 1.75)
+	var surface_y: int = Settings.sea_level + int(rand * 24)
+	return int(floor(float(surface_y) / chunk_height))
+
+func get_priority_chunks(columns: Dictionary, priority: int) -> Array:
+	var num_threads: int = loading_threads.size()
+	var thread_batches: Array = []
+	for i in range(num_threads):
+		thread_batches.append([])
+
+	var col_index: int = 0
+	for col_key in columns:
+		var grid_x: int = col_key.x
+		var grid_z: int = col_key.y  # Vector2i so .y is grid Z
+		var surface_layer: int = estimate_surface_layer(grid_x, grid_z)
+		var thread_idx: int = col_index % num_threads
+
+		for chunk in columns[col_key]:
+			var chunk_priority: int
+			if chunk.y == surface_layer:
+				chunk_priority = 0
+			elif chunk.y == surface_layer - 1:
+				chunk_priority = 1
+			elif chunk.y == surface_layer + 1 or chunk.y == surface_layer + 2:
+				chunk_priority = 2  # placeholder, will be refined after P0 generates
+			else:
+				chunk_priority = 3
+
+			if chunk_priority == priority:
+				thread_batches[thread_idx].append(chunk)
+
+		col_index += 1
+	return thread_batches
+
 func multithreaded_terrain_generation(chunks_by_thread, _number_of_threads) -> void:
 	var num_layers: int = Settings.world_height / Settings.chunk_height
 	# We need to generate the player's spawn position first. This must include all 3 vertical chunks
@@ -232,12 +264,60 @@ func multithreaded_terrain_generation(chunks_by_thread, _number_of_threads) -> v
 	var spawn_point_chunks: Array = []
 	for layer in range(num_layers):
 		spawn_point_chunks.append(Vector3i(0, layer, 0))
-	#var spawn_point_chunks = [Vector3i(0, 0, 0), Vector3i(0, 0, 1), Vector3i(0, 0, 2)]
 	generate_chunks(spawn_point_chunks)  # Generate spawn chunk first
 	
-	for i in range(chunks_by_thread.size()):
-		if i < loading_threads.size() and not chunks_by_thread[i].is_empty():
-			loading_threads[i].start(func(): generate_chunks(chunks_by_thread[i]))
+# Build column dictionary for priority system
+	var columns: Dictionary = {}
+	for thread_batch in chunks_by_thread:
+		for chunk in thread_batch:
+			var col_key: Vector2i = Vector2i(chunk.x, chunk.z)
+			if not columns.has(col_key):
+				columns[col_key] = []
+			columns[col_key].append(chunk)
+
+	# P0 and P1 — surface and directly below
+	for priority in [0, 1]:
+		var batches: Array = get_priority_chunks(columns, priority)
+		for i in range(batches.size()):
+			if not batches[i].is_empty():
+				var batch = batches[i]  # capture by value
+				loading_threads[i].start(func(): generate_chunks(batch))
+		for thread in loading_threads:
+			if thread.is_started():
+				thread.wait_to_finish()
+
+	# P2 — chunks targeted by CCS blocks
+	var p2_chunks: Array = []
+	pending_structures_mutex.lock()
+	for chunk_key in pending_structures:
+		if not chunks.has(chunk_key):
+			p2_chunks.append(chunk_key)
+	pending_structures_mutex.unlock()
+
+	if not p2_chunks.is_empty():
+		var num_threads: int = loading_threads.size()
+		var p2_batches: Array = []
+		for i in range(num_threads):
+			p2_batches.append([])
+		for i in range(p2_chunks.size()):
+			p2_batches[i % num_threads].append(p2_chunks[i])
+		for i in range(p2_batches.size()):
+			if not p2_batches[i].is_empty():
+				var batch = p2_batches[i]
+				loading_threads[i].start(func(): generate_chunks(batch))
+		for thread in loading_threads:
+			if thread.is_started():
+				thread.wait_to_finish()
+
+	# P3 — everything else
+	var p3_batches: Array = get_priority_chunks(columns, 3)
+	for i in range(p3_batches.size()):
+		if not p3_batches[i].is_empty():
+			var batch = p3_batches[i]
+			loading_threads[i].start(func(): generate_chunks(batch))
+	for thread in loading_threads:
+		if thread.is_started():
+			thread.wait_to_finish()
 
 func apply_late_ccs() -> void:
 	pending_structures_mutex.lock()
@@ -321,7 +401,7 @@ func _on_remove_block(_pos: Vector3i) -> void:
 	var world_position: Vector3i = player_focus.get_ray_hit().remove_position
 	var target = get_target_chunk(world_position)
 	if target.is_empty():
-		print("get_target_chunk returned empty")
+		#print("get_target_chunk returned empty")
 		return
 	
 	var correct_chunk = target["chunk"]
@@ -342,7 +422,7 @@ func remove_chunk(chunk_position: Vector3i) -> void:
 	chunk.queue_free()
 
 # Helper Function that can return the Surface Height of any chunk.
-# Call EventBus.chunk_manager.get_surface(x, z) from anywhere.
+# Call EventBus.world_manager.get_surface(x, z) from anywhere.
 func get_surface_y(world_x: int, world_z: int) -> int:
 	var chunk_x: int = int(floor(float(world_x) / Settings.chunk_size))
 	var chunk_z: int = int(floor(float(world_z) / Settings.chunk_size))
@@ -361,34 +441,52 @@ func get_surface_y(world_x: int, world_z: int) -> int:
 
 	return -1  # No surface found in this column
 
-func report_stats(generate_mesh_us: int, add_face_us: int, add_face_calls: int) -> void:
+func report_stats(generate_mesh_us: int, add_face_us: int, add_face_calls: int, generate_data_us: int, greedy_mesh_us: int, transparent_mesh_us: int) -> void:
 	stat_mutex.lock()
 	stat_generate_mesh_total += generate_mesh_us
 	stat_generate_mesh_count += 1
 	stat_add_face_total += add_face_us
 	stat_add_face_count += add_face_calls
+	stat_generate_data_total += generate_data_us
+	stat_generate_data_count += 1
+	stat_perface_mesh_total += greedy_mesh_us
+	stat_transparent_mesh_total += transparent_mesh_us
 	stat_chunks_reported += 1
-	var all_done: bool = stat_chunks_reported >= stat_chunks_expected
+	var all_done: bool = stat_chunks_reported >= stat_chunks_expected and not stat_generation_complete
+	if all_done:
+		stat_generation_complete = true
 	stat_mutex.unlock()
 
-	#if all_done:
-		#print_generation_stats()
+	if all_done:
+		print_generation_stats.call_deferred()
 
 func print_generation_stats() -> void:
 	print("=== Generation Complete: %d chunks ===" % stat_chunks_reported)
+	print("  total time:        %d ms" % (Time.get_ticks_msec() - stat_generation_start_time))
+	if stat_generate_data_count > 0:
+		print("  generate_data:     avg %.2f us over %d chunks" % [
+			float(stat_generate_data_total) / stat_generate_data_count,
+			stat_generate_data_count])
 	if stat_generate_mesh_count > 0:
-		print("  generate_mesh:    avg %.2f us over %d chunks" % [
+		print("  generate_mesh:     avg %.2f us over %d chunks" % [
 			float(stat_generate_mesh_total) / stat_generate_mesh_count,
 			stat_generate_mesh_count])
+	if stat_generate_mesh_count > 0:
+		print("  per-face_mesh:       avg %.2f us over %d chunks" % [
+			float(stat_perface_mesh_total) / stat_generate_mesh_count,
+			stat_generate_mesh_count])
+	if stat_generate_mesh_count > 0:
+		print("  transparent_mesh:  avg %.2f us over %d chunks" % [
+			float(stat_transparent_mesh_total) / stat_generate_mesh_count,
+			stat_generate_mesh_count])
 	if stat_add_face_count > 0:
-		print("  add_face:         called %d times total, avg %.4f us each" % [
+		print("  add_face:          called %d times total, avg %.4f us each" % [
 			stat_add_face_count,
 			float(stat_add_face_total) / stat_add_face_count])
 	if visual_commit_count > 0:
-		print("  commit_visuals:   avg %.2f ms over %d chunks" % [
+		print("  commit_visuals:    avg %.2f ms over %d chunks" % [
 			float(total_visual_time) / visual_commit_count,
 			visual_commit_count])
-	pass
 
 # This acts as a flag that should allow us to terminate threads almost instantly.
 func thread_is_kill() -> bool:
@@ -396,6 +494,8 @@ func thread_is_kill() -> bool:
 	return kill_thread
 
 func _exit_tree() -> void:
+	if generation_thread.is_started():
+		generation_thread.wait_to_finish()
 	for thread in loading_threads:
 		if thread.is_started():
 			thread.wait_to_finish()

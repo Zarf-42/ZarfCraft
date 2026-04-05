@@ -19,7 +19,7 @@ script = ExtResource("1_f3sb7")
 
 [node name="DayNightCycle" parent="." unique_id=325228235 instance=ExtResource("2_ov2xu")]
 
-[node name="ChunkManager" parent="." unique_id=1812560747 instance=ExtResource("3_tlwt5")]
+[node name="WorldManager" parent="." unique_id=1812560747 instance=ExtResource("3_tlwt5")]
 block_types = Array[ExtResource("4_gbfbk")]([ExtResource("5_ioo17"), ExtResource("6_wse8f"), ExtResource("7_ic0uy"), ExtResource("8_ioo17"), ExtResource("9_ov2xu"), ExtResource("10_mad0u"), ExtResource("11_ocfjn"), ExtResource("12_dqqhb")])
 
 [node name="Player" parent="." unique_id=165270570 instance=ExtResource("2_fj7yv")]

@@ -11,7 +11,7 @@ func _ready():
 
 # AI Generated, figure this out
 func _scroll(scroll_direction: String):
-	var block_types = EventBus.chunk_manager.block_types
+	var block_types = EventBus.world_manager.block_types
 	
 	if block_types.is_empty():
 		return
@@ -27,4 +27,4 @@ func _scroll(scroll_direction: String):
 			block_index = block_types.size() - 1
 			
 	player.selected_block_type = block_types[block_index]
-	#print("Selected block type: ", player.selected_block_type.block_name)
+	##print("Selected block type: ", player.selected_block_type.block_name)

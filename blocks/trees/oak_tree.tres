@@ -7,6 +7,5 @@ script = ExtResource("1_yi35y")
 tree_name = "Oak"
 log_block_name = "Oak Log"
 leaves_block_name = "Oak Leaves"
-trunk_min = 12
-trunk_max = 24
+trunk_max = 8
 metadata/_custom_type_script = "uid://bukjfu8um0cxb"

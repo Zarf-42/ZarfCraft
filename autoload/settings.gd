@@ -8,6 +8,7 @@ const chunk_size: int = 16
 const chunk_height: int = 16
 const world_height: int = 288 # Defines the world's height in Blocks, not chunks
 const sea_level: int = 160 # This is Y-altitude, not chunks
+const chunk_collision_radius: int = 1  # Chunks around the player that get collision meshes (XZ only, all vertical layers)
 
 var mouse_mode = Input.MOUSE_MODE_CAPTURED # Prevents the mouse from exiting the window. Needs to be
 	# user-configurable

@@ -178,7 +178,7 @@ static func _add_greedy_face(
 		Cube.Face.BOTTOM: uv_offset = block.uv_bottom
 		_:                uv_offset = block.uv_side
 
-	#print("block: ", block.block_name,
+	##print("block: ", block.block_name,
 			  #" face: ", face,
 			  #" uv_offset: ", uv_offset,
 			  #" atlas: ", number_of_textures_in_atlas,

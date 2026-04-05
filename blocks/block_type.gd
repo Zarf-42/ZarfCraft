@@ -45,6 +45,6 @@ func precompute_uvs(atlas_size: Vector2) -> void:
 		elif face == Cube.Face.BOTTOM: uv_offset = uv_bottom
 		else:                           uv_offset = uv_side
 		var array_of_uvs: PackedVector2Array = PackedVector2Array()
-		for index: int in Cube.precomp_indices[face]:
-			array_of_uvs.append((Cube.face_vertex_uvs[face][index] + uv_offset) / atlas_size)
+		for vertice_index: int in Cube.precomp_indices[face]:
+			array_of_uvs.append((Cube.face_vertex_uvs[face][vertice_index] + uv_offset) / atlas_size)
 		baked_uvs[face] = array_of_uvs

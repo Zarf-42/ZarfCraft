@@ -10,8 +10,9 @@ class RayHit:
 		add_position = add
 
 func get_ray_hit():
-	var collider = get_collider()
-	if collider is not Chunk: return null
+	if not is_colliding():
+		return null
+		var point = get_collision_point()
 	
 	# This gathers the Collision Point's coordinates and the Normal the player is looking at. These
 	# are used to determine what block is being targeted and from what direction, so that we can
@@ -22,6 +23,4 @@ func get_ray_hit():
 	var point = get_collision_point()
 	var normal = Vector3i(get_collision_normal())
 	var remove_position = Vector3i((point - normal * 0.5).floor())
-	#var add_position = remove_position + normal
-
 	return RayHit.new(remove_position, remove_position + normal)

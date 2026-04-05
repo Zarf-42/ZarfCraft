@@ -23,12 +23,10 @@ albedo_texture = ExtResource("2_eat54")
 metallic_specular = 0.0
 texture_filter = 0
 
-[node name="Chunk" type="StaticBody3D" unique_id=1147404096]
+[node name="Chunk" type="Node3D" unique_id=27676966]
 script = ExtResource("1_kdh3y")
 tree_types = Array[ExtResource("4_ksjfa")]([ExtResource("5_dooba"), ExtResource("6_k7vje")])
 material = SubResource("ShaderMaterial_4oxuw")
 transparent_material = SubResource("StandardMaterial3D_uc5gi")
-
-[node name="TerrainCollision" type="CollisionShape3D" parent="." unique_id=1799023280]
 
 [node name="TerrainMesh" type="MeshInstance3D" parent="." unique_id=1552800747]

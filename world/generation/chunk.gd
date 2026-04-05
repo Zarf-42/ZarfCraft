@@ -1,5 +1,5 @@
 class_name Chunk
-extends StaticBody3D
+extends Node3D
 
 # This Class defines the geometry of Voxels, how voxels are placed inside Chunks, and how Chunk
 # meshes are optimized. We should probably split out Voxels into its own class.
@@ -13,7 +13,6 @@ extends StaticBody3D
 # makes everything transparent. I don't know if removing that option would allow us to use just one mesh or not.
 @export var transparent_material: Material
 
-@onready var collision_shape = $TerrainCollision
 @onready var mesh_instance: MeshInstance3D = $TerrainMesh
 
 var voxels: Dictionary[Vector3i, BlockType] = {}
@@ -44,10 +43,12 @@ var transparent_uvs = PackedVector2Array()
 # Stores the altitude of the first air block above the surface of each column.
 # Can be used for spawning things like trees and structures without having to calculate each time.
 var heightmap: Array = []
-var has_been_committed: bool = false
 
 # Adding keys to each chunk so it can be referenced by filename
 var chunks_key: Vector3i = Vector3i.ZERO
+
+# For fixing axis flipping on chunk generation
+var world_origin: Vector3i = Vector3i.ZERO
 
 # For tuning cave generation
 @export var big_cave_density: float = 0.05			# 0-1, higher = more caves
@@ -72,11 +73,6 @@ var rebuild_count: int = 0
 
 # This is to help address lag when adding or removing a block.
 var needs_rebuild: bool = false
-var player_initiated_rebuild: bool = false
-
-# This is for making commit_collision run when a batch of commits are ready to go, instead of once
-# each time the user changes a block.
-var commit_collision_timer: SceneTreeTimer = null
 
 # For fixing freeze caused by all chunks being generated on the main thread
 var was_generated_by_thread: bool = false
@@ -84,8 +80,6 @@ var was_generated_by_thread: bool = false
 var stat_generate_mesh_us: int = 0
 var stat_add_face_us: int = 0
 var stat_add_face_count: int = 0
-
-signal collision_ready
 
 func _process(_delta: float) -> void:
 	if needs_rebuild and not is_rebuilding:
@@ -141,9 +135,10 @@ func get_bedrock_height(global_pos: Vector3, heightmap_noise: Noise) -> int:
 func generate_data(chunk_size: int, chunk_height: int, heightmap_noise: Noise, big_cave_noise: Noise, long_cave_noise: Noise)  -> void:
 	# Apply any cross-chunk structure blocks registered for this chunk
 	var ccs_blocks: Array = EventBus.chunk_manager.claim_ccs(chunks_key)
+	if not ccs_blocks.is_empty():
+		print("Chunk ", chunks_key, " claimed ", ccs_blocks.size(), " CCS blocks")
 	for entry in ccs_blocks:
-		voxels[entry["world_pos"] - Vector3i(int(position.x), int(position.y), int(position.z))] = entry["block"]
-		#voxels[entry.world_pos - Vector3i(position)] = entry.block
+		voxels[entry["world_pos"] - Vector3i(int(world_origin.x), int(world_origin.y), int(world_origin.z))] = entry["block"]
 	
 	# Define block types you'll need to refer to by name. Set them to 0 just in case something gets
 	# messed up, then look for them by value.
@@ -160,8 +155,8 @@ func generate_data(chunk_size: int, chunk_height: int, heightmap_noise: Noise, b
 	for x in range(chunk_size):
 		for z in range(chunk_size):
 			# Global XZ of this column
-			var global_pos_x: float = position.x + x # Needs to be a float because we use float math for the noise below.
-			var global_pos_z: float = position.z + z
+			var global_pos_x: float = world_origin.x + x # Needs to be a float because we use float math for the noise below.
+			var global_pos_z: float = world_origin.z + z
 	
 			# This is the formula we use to generate the shape of our terrain. The three
 			# get_noise_2ds act as 3 different octaves; the first generates large hills and valleys,
@@ -194,7 +189,7 @@ func generate_data(chunk_size: int, chunk_height: int, heightmap_noise: Noise, b
 					) + 1 ) / 2.3) + 1
 			
 			for y in range(chunk_height):
-				var world_y: int = int(position.y) + y
+				var world_y: int = int(world_origin.y) + y
 			
 				# Air, skip
 				if world_y >= surface_height:
@@ -231,7 +226,7 @@ func generate_data(chunk_size: int, chunk_height: int, heightmap_noise: Noise, b
 			for y in range(chunk_height - 1, -1, -1):
 				if voxels.has(Vector3i(x, y, z)):
 					# Store global Y of the air block above this surface block
-					heightmap[x][z] = int(position.y) + y + 1
+					heightmap[x][z] = int(world_origin.y) + y + 1
 					break
 	
 	
@@ -243,14 +238,14 @@ func generate_data(chunk_size: int, chunk_height: int, heightmap_noise: Noise, b
 				continue
 
 			# Only place trees on grass blocks
-			var surface_block_pos: Vector3i = Vector3i(x, surface_y - 1 - int(position.y), z)
+			var surface_block_pos: Vector3i = Vector3i(x, surface_y - 1 - int(world_origin.y), z)
 			if not voxels.has(surface_block_pos):
 				continue
 			if voxels[surface_block_pos] != BlockRegistry.get_block("grass"):
 				continue
 
-			var world_x: int = int(position.x) + x
-			var world_z: int = int(position.z) + z
+			var world_x: int = int(world_origin.x) + x
+			var world_z: int = int(world_origin.z) + z
 
 			if not TreeGenerator.should_place_tree(world_x, world_z, world_seed):
 				continue
@@ -272,20 +267,20 @@ func generate_data(chunk_size: int, chunk_height: int, heightmap_noise: Noise, b
 
 			var tree_blocks: Dictionary = TreeGenerator.generate_tree(
 				chosen, surface_y, world_x, world_z,
-				voxels, position, chunk_size, chunk_height)
+				voxels, world_origin, chunk_size, chunk_height)
 
 			if tree_blocks.is_empty():
 				continue
 
 			# Sort blocks into local (this chunk) and adjacent (neighboring chunks)
 			for world_pos: Vector3i in tree_blocks:
-				var local_pos: Vector3i = world_pos - Vector3i(int(position.x), int(position.y), int(position.z))
+				var local_pos: Vector3i = world_pos - Vector3i(int(world_origin.x), int(world_origin.y), int(world_origin.z))
 				if local_pos.x >= 0 and local_pos.x < chunk_size and \
 						local_pos.y >= 0 and local_pos.y < chunk_height and \
 						local_pos.z >= 0 and local_pos.z < chunk_size:
 					voxels[local_pos] = tree_blocks[world_pos]
 				else:
-					#print("Sending to CCS: world_pos=", world_pos, " chunk position=", position)
+					print("Sending to CCS: world_pos=", world_pos, " chunk position=", world_origin)
 					EventBus.chunk_manager.register_ccs(world_pos, tree_blocks[world_pos])
 			 
 func generate_mesh() -> void:
@@ -383,7 +378,7 @@ func commit_mesh() -> void:
 	# This used to be the main function that generated chunks. Now it generates the initial chunks
 	# and fires a signal when the spawn point is ready.
 	commit_visuals()
-	commit_collision()
+	EventBus.chunk_manager.request_collision_commit.call_deferred(self)
 	var chunk_height = Settings.chunk_height
 	
 	# This makes sure that the player's spawn point is ready, but doesn't send the signal unless the
@@ -397,44 +392,48 @@ func commit_mesh() -> void:
 func commit_visuals() -> void:
 	if mesh_instance == null:
 		return
-	if vertices.is_empty() and transparent_vertices.is_empty():
+	
+	# Snapshot arrays on the main thread to avoid race conditions with threaded_rebuild
+	regen_mutex.lock()
+	var snap_vertices := vertices.duplicate()
+	var snap_normals := normals.duplicate()
+	var snap_uvs := uvs.duplicate()
+	var snap_uv2s := uv2s.duplicate()
+	var snap_transparent_vertices := transparent_vertices.duplicate()
+	var snap_transparent_normals := transparent_normals.duplicate()
+	var snap_transparent_uvs := transparent_uvs.duplicate()
+	regen_mutex.unlock()
+
+	if snap_vertices.is_empty() and snap_transparent_vertices.is_empty():
 		mesh_instance.mesh = null
 		return
+
 	var start = Time.get_ticks_msec()
 	var new_mesh = ArrayMesh.new()
-	
-	if not vertices.is_empty():
+
+	if not snap_vertices.is_empty():
 		var arrays: Array = []
 		arrays.resize(Mesh.ARRAY_MAX)
-		arrays[Mesh.ARRAY_VERTEX] = vertices
-		arrays[Mesh.ARRAY_NORMAL] = normals
-		arrays[Mesh.ARRAY_TEX_UV] = uvs
-		arrays[Mesh.ARRAY_TEX_UV2] = uv2s
+		arrays[Mesh.ARRAY_VERTEX] = snap_vertices
+		arrays[Mesh.ARRAY_NORMAL] = snap_normals
+		arrays[Mesh.ARRAY_TEX_UV] = snap_uvs
+		arrays[Mesh.ARRAY_TEX_UV2] = snap_uv2s
 		new_mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
 		new_mesh.surface_set_material(0, material)
-	if not transparent_vertices.is_empty():
+
+	if not snap_transparent_vertices.is_empty():
 		var arrays = []
 		arrays.resize(Mesh.ARRAY_MAX)
-		arrays[Mesh.ARRAY_VERTEX] = transparent_vertices
-		arrays[Mesh.ARRAY_NORMAL] = transparent_normals
-		arrays[Mesh.ARRAY_TEX_UV] = transparent_uvs
+		arrays[Mesh.ARRAY_VERTEX] = snap_transparent_vertices
+		arrays[Mesh.ARRAY_NORMAL] = snap_transparent_normals
+		arrays[Mesh.ARRAY_TEX_UV] = snap_transparent_uvs
 		new_mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
 		new_mesh.surface_set_material(new_mesh.get_surface_count() - 1, transparent_material)
-		
+
 	mesh_instance.mesh = new_mesh
-	
+
 	if benchmarking == true:
 		print("Commit Visuals: %s ms" % (Time.get_ticks_msec() - start))
-
-func commit_collision() -> void:
-	if mesh_instance.mesh == null:
-		if has_been_committed:
-			collision_shape.shape = null
-			collision_ready.emit()
-		return
-	has_been_committed = true
-	collision_shape.shape = mesh_instance.mesh.create_trimesh_shape()
-	collision_ready.emit()
 
 # This is to address lag when adding or removing blocks.
 func request_rebuild() -> void:
@@ -442,46 +441,25 @@ func request_rebuild() -> void:
 
 # Rebuilds a chunk's mesh in a multithreaded fashion.
 func threaded_rebuild() -> void:
-	if regen_thread.is_started(): # Old threads that this routine starts might hang around. This
-		# cleans them up.
+	if regen_thread.is_started():
 		regen_thread.wait_to_finish()
-	var cached_position = position  # Cache before entering thread
+	var cached_position = position
 	regen_thread = Thread.new()
 	regen_thread.start(func():
-		print("threaded_rebuild running on chunk at ", cached_position)
-		regen_mutex.lock() # Lock this mutex, then clear vertices, normals, and uvs
+		#print("threaded_rebuild running on chunk at ", cached_position)
+		regen_mutex.lock()
 		vertices.clear()
 		normals.clear()
 		uvs.clear()
-		# Transparent materials need their own seperate mesh (see export section)
 		transparent_vertices.clear()
 		transparent_normals.clear()
 		transparent_uvs.clear()
 		uv2s.clear()
-		generate_mesh() # Generate_mesh has its own timer and print funciton.
+		generate_mesh()
 		regen_mutex.unlock()
 		commit_visuals.call_deferred()
-		# If the player initiates a rebuild (adds or removes a block), commit collision immediately.
-		# Otherwise, schedule it. This is an expensive operation and it needs to be staggered.
-		if player_initiated_rebuild:
-			commit_collision.call_deferred() # Right away
-			player_initiated_rebuild = false
-		else:
-			schedule_collision_rebuild.call_deferred() # Scheduled
 		finish_rebuild.call_deferred()
 		)
-		
-func schedule_collision_rebuild() -> void:
-	#var start = Time.get_ticks_msec()
-	if commit_collision_timer != null:
-		# Reset the clock if it's already running
-		commit_collision_timer = null
-	commit_collision_timer = get_tree().create_timer(0.1) # I started this with a value of 0.5, that's
-	# almost certainly too long. But let's see how tight we can make it.
-	commit_collision_timer.timeout.connect(func():
-		commit_collision()
-		commit_collision_timer = null
-	)
 
 func finish_rebuild() -> void:
 	if regen_thread.is_started():

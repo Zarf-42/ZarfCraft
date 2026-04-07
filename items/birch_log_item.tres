@@ -1,0 +1,9 @@
+[gd_resource type="Resource" script_class="ItemType" format=3 uid="uid://cv2oi6n8tlthu"]
+
+[ext_resource type="Script" uid="uid://divnm6bv35xox" path="res://items/item_type.gd" id="1_vch73"]
+
+[resource]
+script = ExtResource("1_vch73")
+item_name = "Birch Log"
+placeable_block_name = "Birch Log"
+metadata/_custom_type_script = "uid://divnm6bv35xox"

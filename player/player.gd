@@ -21,6 +21,7 @@ var world_manager: WorldManager
 
 @export var selected_block_type_index: int = 1
 var selected_block_type: BlockType
+var inventory: Inventory = Inventory.new() # This is the player's inventory.
 
 var flying: bool = false
 
@@ -31,6 +32,7 @@ const GRAVITY: float = 9.8
 var paused = Settings.pause_state
 
 var found_chunk: Chunk = null # For finding the chunk the player is spawning in
+var current_player_chunk: Vector2i = Vector2i(0, 0)
 
 func _ready() -> void:
 	visible = false
@@ -71,7 +73,8 @@ func _physics_process(delta: float) -> void:
 		running = 2
 	else:
 		running = 1
-	
+		
+	check_chunk_boundary() # Should we move this out of _physics_process()?
 
 
 	# Get the input direction and handle the movement/deceleration.
@@ -184,6 +187,27 @@ func spawn() -> void:
 	Settings.player_is_spawned = false
 	spawn()
 
+func check_chunk_boundary() -> void:
+	if not Settings.player_is_spawned:
+		return
+	var new_chunk := Vector2i(
+		int(floor(global_position.x / chunk_size)),
+		int(floor(global_position.z / chunk_size))
+	)
+	if new_chunk != current_player_chunk:
+		current_player_chunk = new_chunk
+		EventBus.chunk_changed.emit(new_chunk)
+
+func add_to_inventory(stack: ItemStack) -> int:
+	print("add_to_inventory: ", stack.item_type.item_name, " x", stack.count)
+	if stack.is_empty():
+		return 0
+	var leftover: int = inventory.add_item(stack.item_type, stack.count)
+	if leftover < stack.count:
+		# At least some items were added, emit a signal for the UI to update
+		EventBus.inventory_changed.emit(inventory)
+	return leftover
+	
 func load_spawn() -> void: # For loading a savegame
 	found_chunk = null
 	var world_data = SaveManager.load_world()

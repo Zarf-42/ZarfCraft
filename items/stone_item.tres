@@ -1,0 +1,9 @@
+[gd_resource type="Resource" script_class="ItemType" format=3 uid="uid://o20nspnnwfxb"]
+
+[ext_resource type="Script" uid="uid://divnm6bv35xox" path="res://items/item_type.gd" id="1_umr7g"]
+
+[resource]
+script = ExtResource("1_umr7g")
+item_name = "Stone"
+placeable_block_name = "Stone"
+metadata/_custom_type_script = "uid://divnm6bv35xox"

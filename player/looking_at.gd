@@ -10,6 +10,7 @@ extends Label
 @onready var focus_thingy: MeshInstance3D = $"../../../../../../FocusThingy"
 @onready var chunk: Label = $"../Chunk"
 @onready var type: Label = $"../Type"
+#@onready var ray_hit = player_focus.get_ray_hit()
 
 func _ready():
 	# Ignore the player's collision mesh! Or else the raycaster won't work. We don't have to ignore
@@ -17,9 +18,8 @@ func _ready():
 	player_focus.add_exception(player)
 
 func _process(_delta: float):
-	# This handles a label in the HUD that tells you what you're looking at. PlayerFocus hits a chunk,
-	# then get_block_target figures out the position of the block the player is looking at.
-	if player_focus.get_collider() == null:
+	var ray_hit = player_focus.get_ray_hit()
+	if ray_hit == null:
 		looking_at.text = "Target: Nothing"
 		cursor_location.text = "Cursor: Nothing"
 		focus_thingy.visible = false
@@ -27,13 +27,15 @@ func _process(_delta: float):
 		type.text = "Type: "
 		chunk.text = "Chunk: "
 	else:
-		looking_at.text = "Target: %s" % [player_focus.get_collision_point()]
+		looking_at.text = "Target: %s" % [ray_hit.remove_position]
 		focus_thingy.visible = true
-		get_target(player_focus.get_collision_point())
+		get_target(ray_hit)
 
-func get_target(_collision_point):
-	# Get the Chunk the player is looking at.
-	var block_normal = Vector3i(player_focus.get_collision_normal())
+func get_target(ray_hit: BlockRay.RayHit) -> void:
+	var remove_pos: Vector3i = ray_hit.remove_position
+	var add_pos: Vector3i = ray_hit.add_position
+	var block_normal: Vector3i = add_pos - remove_pos
+
 	var face_direction = ""
 	if block_normal == Vector3i(0, 0, 1):
 		face_direction = "Front"
@@ -47,28 +49,23 @@ func get_target(_collision_point):
 		face_direction = "Bottom"
 	elif block_normal == Vector3i(0, 1, 0):
 		face_direction = "Top"
+
 	block_normal_label.text = "Normal: %s Direction: %s" % [block_normal, face_direction]
-	
-	focus_thingy.global_position = player_focus.get_collision_point()
-	for axes in 3:
-		if block_normal[axes] == 0.0:
-			focus_thingy.position[axes] = floor(focus_thingy.position[axes]) + 0.5
-		else:
-			focus_thingy.position[axes] -= 0.5 * block_normal[axes]
 
-	var current_block: Vector3i = floor(focus_thingy.position)
-	cursor_location.text = "Cursor: %s" % [current_block]
+	# Position the focus thingy in the center of the targeted block
+	focus_thingy.global_position = Vector3(remove_pos) + Vector3(0.5, 0.5, 0.5)
+	cursor_location.text = "Cursor: %s" % [remove_pos]
 
-	# Find the chunk from world position instead of from the collider
-	var chunk_x: int = int(floor(float(current_block.x) / Settings.chunk_size))
-	var chunk_z: int = int(floor(float(current_block.z) / Settings.chunk_size))
-	var chunk_layer: int = int(floor(float(current_block.y) / Settings.chunk_height))
+	# Find the chunk from world position
+	var chunk_x: int = int(floor(float(remove_pos.x) / Settings.chunk_size))
+	var chunk_layer: int = int(floor(float(remove_pos.y) / Settings.chunk_height))
+	var chunk_z: int = int(floor(float(remove_pos.z) / Settings.chunk_size))
 	var chunk_key: Vector3i = Vector3i(chunk_x, chunk_layer, chunk_z)
 	var current_chunk: Chunk = world_manager.chunks.get(chunk_key, null)
 
 	if current_chunk != null:
 		chunk.text = "Chunk: " + current_chunk.name
-		var local_voxel_pos = current_block - Vector3i(current_chunk.global_position)
+		var local_voxel_pos = remove_pos - Vector3i(current_chunk.global_position)
 		if current_chunk.regen_mutex.try_lock():
 			if current_chunk.voxels.has(local_voxel_pos):
 				type.text = "Type: " + current_chunk.voxels[local_voxel_pos].block_name

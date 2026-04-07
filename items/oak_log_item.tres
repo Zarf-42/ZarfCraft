@@ -1,0 +1,9 @@
+[gd_resource type="Resource" script_class="ItemType" format=3 uid="uid://dv0jmtcv44088"]
+
+[ext_resource type="Script" uid="uid://divnm6bv35xox" path="res://items/item_type.gd" id="1_py4ow"]
+
+[resource]
+script = ExtResource("1_py4ow")
+item_name = "Oak Log"
+placeable_block_name = "Oak Log"
+metadata/_custom_type_script = "uid://divnm6bv35xox"

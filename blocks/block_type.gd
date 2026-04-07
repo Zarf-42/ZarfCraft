@@ -17,13 +17,18 @@ extends Resource
 # We may need to modify this so that we can have a percentage chance of certain drops. I.E. a machine
 # might have a chance of breaking and dropping a basic component instead of the machine, unless a
 # special device is used. I.E. wrenches in Tekkit.
-@export var drops: Dictionary = {
-	"hand": [],
-	"pickaxe": [],
-	"axe": [],
-	"hoe": [],
-	"shovel": [],
-}
+@export var drops_hand: Array[DropTableEntry] = []
+@export var drops_pickaxe: Array[DropTableEntry] = []
+@export var drops_axe: Array[DropTableEntry] = []
+@export var drops_hoe: Array[DropTableEntry] = []
+@export var drops_shovel: Array[DropTableEntry] = []
+#@export var drops: Dictionary = {
+	#"hand": [] as Array[DropTableEntry],
+	#"pickaxe": [] as Array[DropTableEntry],
+	#"axe": [] as Array[DropTableEntry],
+	#"hoe": [] as Array[DropTableEntry],
+	#"shovel": [] as Array[DropTableEntry],
+#}
 
 # Enable multiple textures per block, I.E. grassy dirt
 @export var uv_top: Vector2 = Vector2.ZERO
@@ -48,3 +53,25 @@ func precompute_uvs(atlas_size: Vector2) -> void:
 		for vertice_index: int in Cube.precomp_indices[face]:
 			array_of_uvs.append((Cube.face_vertex_uvs[face][vertice_index] + uv_offset) / atlas_size)
 		baked_uvs[face] = array_of_uvs
+
+# Drop Table
+func get_drops(tool: String) -> Array[ItemStack]:
+	var result: Array[ItemStack] = []
+	var tool_drops: Array[DropTableEntry]
+	match tool:
+		"hand":    tool_drops = drops_hand
+		"pickaxe": tool_drops = drops_pickaxe
+		"axe":     tool_drops = drops_axe
+		"hoe":     tool_drops = drops_hoe
+		"shovel":  tool_drops = drops_shovel
+		_:         return result
+
+	for entry in tool_drops:
+		if randf() > entry.chance:
+			continue
+		var stack := ItemStack.new()
+		stack.item_type = entry.item_type
+		stack.count = randi_range(entry.count_min, entry.count_max)
+		result.append(stack)
+
+	return result

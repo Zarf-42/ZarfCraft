@@ -1,8 +1,22 @@
 [gd_resource type="Resource" script_class="BlockType" format=3 uid="uid://scvqdjpv5bj1"]
 
 [ext_resource type="Script" uid="uid://bukjfu8um0cxb" path="res://blocks/block_type.gd" id="1_ev6vt"]
+[ext_resource type="Script" uid="uid://15m1y60vp4do" path="res://items/drop_table_entry.gd" id="1_vks8y"]
+[ext_resource type="Resource" uid="uid://o20nspnnwfxb" path="res://items/stone_item.tres" id="2_thtyd"]
+
+[sub_resource type="Resource" id="Resource_cjpcw"]
+script = ExtResource("1_vks8y")
+item_type = ExtResource("2_thtyd")
+metadata/_custom_type_script = "uid://15m1y60vp4do"
+
+[sub_resource type="Resource" id="Resource_ueay5"]
+script = ExtResource("1_vks8y")
+item_type = ExtResource("2_thtyd")
+metadata/_custom_type_script = "uid://15m1y60vp4do"
 
 [resource]
 script = ExtResource("1_ev6vt")
 block_name = "Stone"
+drops_hand = Array[ExtResource("1_vks8y")]([SubResource("Resource_cjpcw")])
+drops_pickaxe = Array[ExtResource("1_vks8y")]([SubResource("Resource_ueay5")])
 metadata/_custom_type_script = "uid://bukjfu8um0cxb"

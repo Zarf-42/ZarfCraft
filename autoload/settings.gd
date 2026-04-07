@@ -23,6 +23,7 @@ var threads: Array = []
 @onready var player_is_spawned = false # This gets set to true during gameplay. Maybe move this to EventBus?
 @export var texture_size: int = 16 # The size of textures used in Atlases. Defaults to a square.
 @export var default_block: String = "Stone" # This is so we can configure different default block types.
+@export var ui_scale: int = 2  # 1 = small, 2 = normal, 3 = large. This is like Minecraft's GUI Multiplier.
 
 var pause_state: bool = false # When set to true, pauses the game. Another thing that should be moved to EventBus?
 

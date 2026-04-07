@@ -1,7 +1,7 @@
 [gd_scene format=3 uid="uid://xbn4ypmc1oll"]
 
 [ext_resource type="Script" uid="uid://dl7w33xqehnw0" path="res://world/generation/chunk.gd" id="1_kdh3y"]
-[ext_resource type="Shader" uid="uid://kj0x8hi36og1" path="res://world/terrain.gdshader" id="2_6i0au"]
+[ext_resource type="Shader" uid="uid://bvwywms2e0usq" path="res://world/terrain.gdshader" id="2_6i0au"]
 [ext_resource type="Texture2D" uid="uid://tjx2w77isjok" path="res://blocks/textures/atlas.png" id="2_eat54"]
 [ext_resource type="Script" uid="uid://da6pdmov2j8wc" path="res://world/surface_features/tree_type.gd" id="4_ksjfa"]
 [ext_resource type="Resource" uid="uid://ca564s1b5yuoo" path="res://blocks/trees/oak_tree.tres" id="5_dooba"]

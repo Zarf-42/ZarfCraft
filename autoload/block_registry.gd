@@ -8,6 +8,9 @@ extends Node
 var blocks_by_name: Dictionary = {}
 var blocks_by_index: Array[BlockType] = []
 
+static var block_material_cache: Dictionary = {}  # BlockType -> ShaderMaterial
+static var block_preview_material_cache: Dictionary = {}
+
 func register(block_types: Array[BlockType]) -> void:
 	# When we start the game, clear out any blocks. We need to do this in case there's garbage data
 	# or if a player enables (or disables) a mod.
@@ -28,6 +31,27 @@ func register(block_types: Array[BlockType]) -> void:
 	# make this triggerable again if a user loads a mod.
 	for block: BlockType in blocks_by_index:
 		block.precompute_uvs(atlas_size)
+
+# A cached version of the terrain material.
+static func get_block_material(block: BlockType) -> ShaderMaterial:
+	if block_material_cache.has(block):
+		return block_material_cache[block]
+	var mat := ShaderMaterial.new()
+	mat.shader = preload("res://world/terrain.gdshader")
+	mat.set_shader_parameter("texture_albedo", preload("res://blocks/textures/atlas.png"))
+	mat.set_shader_parameter("roughness", 1.0)
+	mat.set_shader_parameter("specular", 0.0)
+	block_material_cache[block] = mat
+	return mat
+
+static func get_block_preview_material(block: BlockType) -> ShaderMaterial:
+	if block_preview_material_cache.has(block):
+		return block_preview_material_cache[block]
+	var mat := ShaderMaterial.new()
+	mat.shader = preload("res://world/item_preview.gdshader")
+	mat.set_shader_parameter("texture_albedo", preload("res://blocks/textures/atlas.png"))
+	block_preview_material_cache[block] = mat
+	return mat
 
 # Looks up a block by name (a string, like "Grass")
 func get_block(block_name: String) -> BlockType:

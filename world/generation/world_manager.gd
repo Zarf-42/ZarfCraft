@@ -50,6 +50,7 @@ var pending_structures_mutex: Mutex = Mutex.new()
 
 var loading_threads: Array = Settings.threads
 var generation_thread: Thread = Thread.new()
+var chunk_unload_queue: Array = []
 
 # We've sped up chunk generation so much that the act of placing all available chunks in the scene
 # is slowing things down to the point where it feels like the game is frozen when we first start.
@@ -60,6 +61,7 @@ var generation_thread: Thread = Thread.new()
 var chunk_visual_queue: Array = []
 
 var chunk_class = preload("res://world/generation/chunk.tscn")
+var pickup_class = preload("res://items/item_pickup.tscn")
 var chunks: Dictionary[Vector3i, Chunk] = {}
 
 func _process(_delta: float) -> void:
@@ -77,7 +79,12 @@ func _process(_delta: float) -> void:
 
 	if not pending_structures.is_empty():# and chunk_visual_queue.is_empty():
 		apply_late_ccs()
-					
+	
+	# For removing distant chunks smoothly
+	if not chunk_unload_queue.is_empty():
+		var chunk_key = chunk_unload_queue.pop_front()
+		remove_chunk(chunk_key)
+
 func _ready() -> void:
 	print("Surface level: ", (Settings.world_height / Settings.chunk_height))
 	BlockRegistry.register(block_types)
@@ -107,6 +114,7 @@ func _ready() -> void:
 
 	# This tells everybody when the Chunk Manager (I.E. this file) is ready
 	EventBus.world_manager = self
+	EventBus.chunk_changed.connect(on_chunk_changed)
 	
 	var chunks_to_generate: Array = generate_terrain_infinite()
 	
@@ -117,7 +125,17 @@ func _ready() -> void:
 		stat_chunks_expected += thread_batch.size()
 	
 	stat_generation_start_time = Time.get_ticks_msec()
-	generation_thread.start(func(): multithreaded_terrain_generation(chunks_to_generate, loading_threads))
+	generation_thread.start(func():# Generate the spawn column first, same as before
+		var spawn_chunks: Array = []
+		for layer in range(num_layers):
+			spawn_chunks.append(Vector3i(0, layer, 0))
+		generate_chunks(spawn_chunks)
+
+		# Then hand everything else to the new function
+		var all_chunks: Array = []
+		for thread_batch in chunks_to_generate:
+			all_chunks.append_array(thread_batch)
+		multithreaded_terrain_generation_for_chunks(all_chunks))
 	
 	# Tell other scenes we're ready
 	EventBus.blocks_ready.emit(block_types)
@@ -184,7 +202,6 @@ func generate_chunks(pos) -> void:
 		chunks[chunk] = new_chunk
 		call_deferred("add_child", new_chunk)
 		call_deferred("add_to_commit_queue", new_chunk)
-
 
 # CCSs are Cross-Chunk Structures, like trees.
 func register_ccs(world_pos: Vector3i, block: BlockType) -> void:
@@ -257,36 +274,70 @@ func get_priority_chunks(columns: Dictionary, priority: int) -> Array:
 		col_index += 1
 	return thread_batches
 
-func multithreaded_terrain_generation(chunks_by_thread, _number_of_threads) -> void:
-	var num_layers: int = Settings.world_height / Settings.chunk_height
-	# We need to generate the player's spawn position first. This must include all 3 vertical chunks
-	# that exist at this XY coordinate; underground, surface, and sky.
-	var spawn_point_chunks: Array = []
-	for layer in range(num_layers):
-		spawn_point_chunks.append(Vector3i(0, layer, 0))
-	generate_chunks(spawn_point_chunks)  # Generate spawn chunk first
-	
-# Build column dictionary for priority system
-	var columns: Dictionary = {}
-	for thread_batch in chunks_by_thread:
-		for chunk in thread_batch:
-			var col_key: Vector2i = Vector2i(chunk.x, chunk.z)
-			if not columns.has(col_key):
-				columns[col_key] = []
-			columns[col_key].append(chunk)
+# Used to clean up and add new terrain when the player moves.
+func on_chunk_changed(new_chunk_xz: Vector2i) -> void:
+	unload_distant_chunks(new_chunk_xz)
+	generate_chunks_around(new_chunk_xz)
 
-	# P0 and P1 — surface and directly below
+# Get rid of chunks that are too far from the player.
+func unload_distant_chunks(center: Vector2i) -> void:
+	for chunk_key in chunks:
+		var dx: int = absi(chunk_key.x - center.x)
+		var dz: int = absi(chunk_key.z - center.y)
+		if maxi(dx, dz) > render_distance:
+			if not chunk_unload_queue.has(chunk_key):
+				chunk_unload_queue.append(chunk_key)
+
+# Generate new chunks when the player moves far enough.
+func generate_chunks_around(center: Vector2i) -> void:
+	var num_layers: int = Settings.world_height / Settings.chunk_height
+	var new_chunks: Array = []
+	for x in range(-render_distance, render_distance + 1):
+		for z in range(-render_distance, render_distance + 1):
+			var grid_x: int = center.x + x
+			var grid_z: int = center.y + z
+			for layer in range(num_layers):
+				var key := Vector3i(grid_x, layer, grid_z)
+				if not chunks.has(key):
+					new_chunks.append(key)
+
+	if new_chunks.is_empty():
+		return
+
+	# Wait for any previous generation job to finish before starting a new one
+	if generation_thread.is_started():
+		generation_thread.wait_to_finish()
+
+	generation_thread.start(func(): multithreaded_terrain_generation_for_chunks(new_chunks))
+
+# world/generation/world_manager.gd — multithreaded_terrain_generation_for_chunks()
+func multithreaded_terrain_generation_for_chunks(new_chunks: Array) -> void:
+	var num_threads: int = loading_threads.size()
+
+	# Build the column dictionary the same way multithreaded_terrain_generation does,
+	# so get_priority_chunks() can work out which layer is the surface for each column.
+	var columns: Dictionary = {}
+	for chunk in new_chunks:
+		var col_key := Vector2i(chunk.x, chunk.z)
+		if not columns.has(col_key):
+			columns[col_key] = []
+		columns[col_key].append(chunk)
+
+	# P0 and P1 — surface layer and directly below
 	for priority in [0, 1]:
 		var batches: Array = get_priority_chunks(columns, priority)
 		for i in range(batches.size()):
-			if not batches[i].is_empty():
-				var batch = batches[i]  # capture by value
-				loading_threads[i].start(func(): generate_chunks(batch))
+			if batches[i].is_empty():
+				continue
+			var batch = batches[i]
+			if loading_threads[i].is_started():
+				loading_threads[i].wait_to_finish()
+			loading_threads[i].start(func(): generate_chunks(batch))
 		for thread in loading_threads:
 			if thread.is_started():
 				thread.wait_to_finish()
 
-	# P2 — chunks targeted by CCS blocks
+	# P2 — chunks targeted by CCS blocks (e.g. trees that cross chunk boundaries)
 	var p2_chunks: Array = []
 	pending_structures_mutex.lock()
 	for chunk_key in pending_structures:
@@ -295,16 +346,18 @@ func multithreaded_terrain_generation(chunks_by_thread, _number_of_threads) -> v
 	pending_structures_mutex.unlock()
 
 	if not p2_chunks.is_empty():
-		var num_threads: int = loading_threads.size()
 		var p2_batches: Array = []
 		for i in range(num_threads):
 			p2_batches.append([])
 		for i in range(p2_chunks.size()):
 			p2_batches[i % num_threads].append(p2_chunks[i])
 		for i in range(p2_batches.size()):
-			if not p2_batches[i].is_empty():
-				var batch = p2_batches[i]
-				loading_threads[i].start(func(): generate_chunks(batch))
+			if p2_batches[i].is_empty():
+				continue
+			var batch = p2_batches[i]
+			if loading_threads[i].is_started():
+				loading_threads[i].wait_to_finish()
+			loading_threads[i].start(func(): generate_chunks(batch))
 		for thread in loading_threads:
 			if thread.is_started():
 				thread.wait_to_finish()
@@ -312,9 +365,12 @@ func multithreaded_terrain_generation(chunks_by_thread, _number_of_threads) -> v
 	# P3 — everything else
 	var p3_batches: Array = get_priority_chunks(columns, 3)
 	for i in range(p3_batches.size()):
-		if not p3_batches[i].is_empty():
-			var batch = p3_batches[i]
-			loading_threads[i].start(func(): generate_chunks(batch))
+		if p3_batches[i].is_empty():
+			continue
+		var batch = p3_batches[i]
+		if loading_threads[i].is_started():
+			loading_threads[i].wait_to_finish()
+		loading_threads[i].start(func(): generate_chunks(batch))
 	for thread in loading_threads:
 		if thread.is_started():
 			thread.wait_to_finish()
@@ -401,19 +457,30 @@ func _on_remove_block(_pos: Vector3i) -> void:
 	var world_position: Vector3i = player_focus.get_ray_hit().remove_position
 	var target = get_target_chunk(world_position)
 	if target.is_empty():
-		#print("get_target_chunk returned empty")
 		return
 	
 	var correct_chunk = target["chunk"]
 	var correct_local_pos = target["local_pos"]
 	
 	if correct_chunk.voxels.has(correct_local_pos):
+		var broken_block: BlockType = correct_chunk.voxels[correct_local_pos]
+
 		correct_chunk.regen_mutex.lock()
 		correct_chunk.voxels.erase(correct_local_pos)
 		# Dirty voxels are used to creat diffs between what's naturally generated and what the player did.
 		correct_chunk.dirty_voxels[correct_local_pos] = null
 		correct_chunk.regen_mutex.unlock()
 		correct_chunk.threaded_rebuild()
+		
+	# Spawn drops
+		var drops: Array[ItemStack] = broken_block.get_drops("hand")
+		for stack in drops:
+			if stack.is_empty():
+				continue
+			var pickup: ItemPickup = pickup_class.instantiate()
+			add_child(pickup)
+			var spawn_pos: Vector3 = Vector3(world_position) + Vector3(0.5, 0.5, 0.5)
+			pickup.setup(stack, spawn_pos)
 
 func remove_chunk(chunk_position: Vector3i) -> void:
 	if !chunks.has(chunk_position): return

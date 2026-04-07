@@ -16,6 +16,9 @@ var debug_transparent: bool = false
 signal spawn_chunk_is_ready
 signal chunk_spawned
 signal blocks_ready(block_types: Array) # Used to tell other scenes when we've loaded all available
+signal inventory_changed(inventory: Inventory) # Whenever a user picks up or drops an item.
+signal hotbar_slot_changed(index: int) # Whenever the user switches to a different hotbar slot.
+signal chunk_changed(new_chunk_xz: Vector2i) # Whenever the player enters a new chunk, used with worldgen
 
 
 func _ready(): # TODO: Check if we can remove this. Makes no sense that the event bus can't be paused normally.

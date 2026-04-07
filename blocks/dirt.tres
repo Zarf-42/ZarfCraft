@@ -1,10 +1,24 @@
 [gd_resource type="Resource" script_class="BlockType" format=3 uid="uid://bthlsld2koe4s"]
 
+[ext_resource type="Script" uid="uid://15m1y60vp4do" path="res://items/drop_table_entry.gd" id="1_4t0xc"]
 [ext_resource type="Script" uid="uid://bukjfu8um0cxb" path="res://blocks/block_type.gd" id="1_tisec"]
+[ext_resource type="Resource" uid="uid://bvfyump0rb2e2" path="res://items/dirt_item.tres" id="2_cyrg7"]
+
+[sub_resource type="Resource" id="Resource_3h1iw"]
+script = ExtResource("1_4t0xc")
+item_type = ExtResource("2_cyrg7")
+metadata/_custom_type_script = "uid://15m1y60vp4do"
+
+[sub_resource type="Resource" id="Resource_478hr"]
+script = ExtResource("1_4t0xc")
+item_type = ExtResource("2_cyrg7")
+metadata/_custom_type_script = "uid://15m1y60vp4do"
 
 [resource]
 script = ExtResource("1_tisec")
 block_name = "Dirt"
+drops_hand = Array[ExtResource("1_4t0xc")]([SubResource("Resource_3h1iw")])
+drops_shovel = Array[ExtResource("1_4t0xc")]([SubResource("Resource_478hr")])
 uv_top = Vector2(3, 0)
 uv_side = Vector2(3, 0)
 uv_bottom = Vector2(3, 0)

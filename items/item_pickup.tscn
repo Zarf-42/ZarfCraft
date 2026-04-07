@@ -1,0 +1,29 @@
+[gd_scene format=3 uid="uid://cagkmbjkh7toc"]
+
+[ext_resource type="Script" uid="uid://b0lgj8nmy2yr8" path="res://items/item_pickup.gd" id="1_prgrc"]
+
+[sub_resource type="BoxMesh" id="BoxMesh_prgrc"]
+size = Vector3(0.25, 0.25, 0.25)
+
+[sub_resource type="SphereShape3D" id="SphereShape3D_prgrc"]
+radius = 0.25
+
+[sub_resource type="SphereShape3D" id="SphereShape3D_wgnby"]
+radius = 1.5
+
+[node name="ItemPickup" type="RigidBody3D" unique_id=99770288]
+collision_layer = 2
+lock_rotation = true
+script = ExtResource("1_prgrc")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="." unique_id=924096552]
+mesh = SubResource("BoxMesh_prgrc")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=824122722]
+shape = SubResource("SphereShape3D_prgrc")
+
+[node name="CollectionArea" type="Area3D" parent="." unique_id=1585464266]
+collision_mask = 5
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="CollectionArea" unique_id=388894333]
+shape = SubResource("SphereShape3D_wgnby")

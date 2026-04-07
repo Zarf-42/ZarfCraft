@@ -1,10 +1,24 @@
 [gd_resource type="Resource" script_class="BlockType" format=3 uid="uid://dy4kqgie51ncn"]
 
 [ext_resource type="Script" uid="uid://bukjfu8um0cxb" path="res://blocks/block_type.gd" id="1_1vkid"]
+[ext_resource type="Script" uid="uid://15m1y60vp4do" path="res://items/drop_table_entry.gd" id="1_lwo00"]
+[ext_resource type="Resource" uid="uid://dv0jmtcv44088" path="res://items/oak_log_item.tres" id="2_qgw8k"]
+
+[sub_resource type="Resource" id="Resource_5261u"]
+script = ExtResource("1_lwo00")
+item_type = ExtResource("2_qgw8k")
+metadata/_custom_type_script = "uid://15m1y60vp4do"
+
+[sub_resource type="Resource" id="Resource_qgw8k"]
+script = ExtResource("1_lwo00")
+item_type = ExtResource("2_qgw8k")
+metadata/_custom_type_script = "uid://15m1y60vp4do"
 
 [resource]
 script = ExtResource("1_1vkid")
 block_name = "Oak Log"
+drops_hand = Array[ExtResource("1_lwo00")]([SubResource("Resource_qgw8k")])
+drops_axe = Array[ExtResource("1_lwo00")]([SubResource("Resource_5261u")])
 uv_top = Vector2(7, 0)
 uv_side = Vector2(6, 0)
 uv_bottom = Vector2(7, 0)

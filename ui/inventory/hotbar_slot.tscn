@@ -1,0 +1,74 @@
+[gd_scene format=3 uid="uid://b03hl3mfhq2s5"]
+
+[ext_resource type="FontFile" uid="uid://bsntkxnxtnxt3" path="res://ui/Fonts/Kenney Pixel.ttf" id="1_2rcmr"]
+[ext_resource type="Script" uid="uid://84ve6bw8bg36" path="res://ui/inventory/hotbar_slot.gd" id="1_gjo4b"]
+
+[sub_resource type="LabelSettings" id="LabelSettings_gjo4b"]
+font = ExtResource("1_2rcmr")
+outline_size = 2
+outline_color = Color(0, 0, 0, 1)
+
+[node name="HotbarSlot" type="Panel" unique_id=374749158]
+custom_minimum_size = Vector2(64, 64)
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_gjo4b")
+
+[node name="SubViewportContainer" type="SubViewportContainer" parent="." unique_id=576703947]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+stretch = true
+
+[node name="SubViewport" type="SubViewport" parent="SubViewportContainer" unique_id=490125029]
+own_world_3d = true
+transparent_bg = true
+handle_input_locally = false
+debug_draw = 1
+use_hdr_2d = true
+size = Vector2i(1152, 648)
+render_target_update_mode = 4
+
+[node name="Camera3D" type="Camera3D" parent="SubViewportContainer/SubViewport" unique_id=996167486]
+transform = Transform3D(0.70710677, -0.35355338, 0.6123724, 0, 0.8660254, 0.5, -0.70710677, -0.35355338, 0.6123724, 0.75, 0.75, 0.75)
+cull_mask = 2
+projection = 1
+size = 1.2
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="SubViewportContainer/SubViewport" unique_id=1028418481]
+transform = Transform3D(0.70710677, -0.49999997, 0.49999997, 0, 0.70710677, 0.70710677, -0.70710677, -0.49999997, 0.49999997, 0, 0, 0)
+layers = 2
+light_energy = 0.111
+light_indirect_energy = 0.0
+light_volumetric_fog_energy = 0.0
+light_cull_mask = 4293918722
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="SubViewportContainer/SubViewport" unique_id=580760537]
+layers = 2
+
+[node name="MarginContainer" type="MarginContainer" parent="." unique_id=1969944809]
+layout_mode = 1
+anchors_preset = 3
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -40.0
+offset_top = -40.0
+grow_horizontal = 0
+grow_vertical = 0
+theme_override_constants/margin_right = 3
+theme_override_constants/margin_bottom = 3
+
+[node name="ItemCount" type="Label" parent="MarginContainer" unique_id=1658110133]
+layout_mode = 2
+size_flags_vertical = 8
+text = "0"
+label_settings = SubResource("LabelSettings_gjo4b")
+horizontal_alignment = 2

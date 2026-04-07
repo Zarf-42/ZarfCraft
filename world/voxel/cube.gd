@@ -80,7 +80,41 @@ func _ready() -> void:
 			face_vertex_uvs[face].append(compute_uv_for_vertex(face, i))
 		#if face == Cube.Face.BACK or face == Cube.Face.RIGHT:
 			#print("face_vertex_uvs[", face, "]: ", face_vertex_uvs[face])
-			
+
+static func build_block_mesh(block: BlockType, scale: float, number_of_textures_in_atlas: Vector2) -> ArrayMesh:
+	var vertices := PackedVector3Array()
+	var normals := PackedVector3Array()
+	var uvs := PackedVector2Array()
+	var uv2s := PackedVector2Array()
+
+	for face in [Face.FRONT, Face.BACK, Face.LEFT, Face.RIGHT, Face.TOP, Face.BOTTOM]:
+		var uv_offset: Vector2
+		match face:
+			Face.TOP:    uv_offset = block.uv_top
+			Face.BOTTOM: uv_offset = block.uv_bottom
+			_:           uv_offset = block.uv_side
+
+		var tile_uv2 := Vector2(uv_offset.x / number_of_textures_in_atlas.x, 1.0 / number_of_textures_in_atlas.x)
+
+		for i in 6:
+			vertices.append((Cube.precomp_vertices[face][i] - Vector3(0.5, 0.5, 0.5)) * scale)
+		normals.append_array(Cube.precomp_normals[face])
+		for index in Cube.precomp_indices[face]:
+			uvs.append(Cube.face_vertex_uvs[face][index])
+		for i in 6:
+			uv2s.append(tile_uv2)
+
+	var arrays: Array = []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = vertices
+	arrays[Mesh.ARRAY_NORMAL] = normals
+	arrays[Mesh.ARRAY_TEX_UV] = uvs
+	arrays[Mesh.ARRAY_TEX_UV2] = uv2s
+
+	var mesh := ArrayMesh.new()
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	return mesh
+
 static func compute_uv_for_vertex(face: int, vertex_index: int) -> Vector2:
 	var v: Vector3 = VERTICES[vertex_index]
 	match face:

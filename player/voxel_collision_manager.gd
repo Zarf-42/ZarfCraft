@@ -62,13 +62,12 @@ func is_solid(world_pos: Vector3i) -> bool:
 	var world_manager = EventBus.world_manager
 	var chunk_x: int = int(floor(float(world_pos.x) / Settings.chunk_size))
 	var chunk_z: int = int(floor(float(world_pos.z) / Settings.chunk_size))
-	var chunk_layer: int = int(floor(float(world_pos.y) / Settings.chunk_height))
-	var chunk_key: Vector3i = Vector3i(chunk_x, chunk_layer, chunk_z)
+	var chunk_key: Vector3i = Vector3i(chunk_x, 0, chunk_z)
 	var chunk = world_manager.chunks.get(chunk_key, null)
 	if chunk == null:
 		return false
 	var local_pos: Vector3i = Vector3i(
 		world_pos.x - chunk_x * Settings.chunk_size,
-		world_pos.y - chunk_layer * Settings.chunk_height,
+		world_pos.y,
 		world_pos.z - chunk_z * Settings.chunk_size)
 	return chunk.voxels.has(local_pos)

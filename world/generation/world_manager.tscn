@@ -1,6 +1,22 @@
 [gd_scene format=3 uid="uid://d243wvl782oli"]
 
 [ext_resource type="Script" uid="uid://wud5cpxxra46" path="res://world/generation/world_manager.gd" id="1_r8w0l"]
+[ext_resource type="Script" uid="uid://cdbioryt87wb0" path="res://world/generation/chunk_gen_profiler.gd" id="2_pfolt"]
+[ext_resource type="Script" uid="uid://3eov8x7yc2s" path="res://world/generation/noise_settings.gd" id="3_1o4px"]
+[ext_resource type="Script" uid="uid://18eqnrjvakkm" path="res://world/generation/block_interaction_manager.gd" id="4_pveid"]
+[ext_resource type="Script" uid="uid://dpc18pdslv3ln" path="res://world/generation/chunk_scheduler.gd" id="5_3h00w"]
 
 [node name="WorldManager" type="Node" unique_id=1812560747]
 script = ExtResource("1_r8w0l")
+
+[node name="ChunkGenProfiler" type="Node" parent="." unique_id=1326550439]
+script = ExtResource("2_pfolt")
+
+[node name="NoiseSettings" type="Node" parent="." unique_id=173757538]
+script = ExtResource("3_1o4px")
+
+[node name="BlockInteractionManager" type="Node" parent="." unique_id=207257968]
+script = ExtResource("4_pveid")
+
+[node name="ChunkScheduler" type="Node" parent="." unique_id=1468762478]
+script = ExtResource("5_3h00w")

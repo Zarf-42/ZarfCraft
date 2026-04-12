@@ -65,6 +65,8 @@ func get_target(ray_hit: BlockRay.RayHit) -> void:
 
 	if current_chunk != null:
 		chunk.text = "Chunk: " + current_chunk.name
+		if not is_instance_valid(current_chunk):
+			return
 		var local_voxel_pos = remove_pos - Vector3i(current_chunk.global_position)
 		if current_chunk.regen_mutex.try_lock():
 			if current_chunk.voxels.has(local_voxel_pos):

@@ -50,13 +50,11 @@ var chunks_key: Vector3i = Vector3i.ZERO
 # For fixing axis flipping on chunk generation
 var world_origin: Vector3i = Vector3i.ZERO
 
-# For tuning cave generation
-@export var big_cave_density: float = 0.05			# 0-1, higher = more caves
-@export var big_cave_size: float = 0.15				# Lower = bigger caves
-@export var long_cave_density: float = 0.05			# 0-1, higher = more caves
-@export var long_cave_size: float = 0.15				# Lower = bigger caves
-@export var cave_surface_margin: int = 10			# how many blocks from surface caves are suppressed
-@export var cave_surface_reduction: float = 0.15	# how much rarer caves are near surface
+# Perlin Worm cave settings
+@export var worm_count: int = 6           # How many worms start per chunk column
+@export var worm_steps: int = 80          # How many blocks each worm walks
+@export var worm_radius: int = 4          # Carve radius around the worm's path
+@export var cave_surface_margin: int = 0 # Worms are suppressed this many blocks below the surface
 
 # For Benchmarking
 @export var benchmarking: bool = false
@@ -97,35 +95,88 @@ func _ready() -> void:
 		return
 	commit_mesh()
 
-func carve_caves(global_pos: Vector3, world_y: float, big_cave_noise: Noise, long_cave_noise: Noise, surface_factor: float) -> bool:
-	# We currently have two types of cave systems: Big caves and Long caves. Big caves tend to be large open areas, long caves
-	# tend to be long, noodly caves.
-	var big_caves_a = big_cave_noise.get_noise_3d(
-		global_pos.x * big_cave_size,
-		world_y * big_cave_size,
-		global_pos.z * big_cave_size)
-	var big_caves_b = big_cave_noise.get_noise_3d(
-		global_pos.x * big_cave_size + 100.0,
-		world_y * big_cave_size,
-		global_pos.z * big_cave_size + 100.0)
-	var long_caves_a = long_cave_noise.get_noise_3d(
-		global_pos.x * long_cave_size,
-		world_y * long_cave_size,
-		global_pos.z * long_cave_size)
-	var long_caves_b = long_cave_noise.get_noise_3d(
-		global_pos.x * long_cave_size + 100.0,
-		world_y * long_cave_size,
-		global_pos.z * long_cave_size + 100.0)
-		
-	var big_threshold = big_cave_density * surface_factor
-	var long_threshold = long_cave_density * surface_factor
+func perlin_worm_cave_gen(chunk_size: int, chunk_height: int, surface_height_map: Dictionary, steering_noise: FastNoiseLite) -> Dictionary:
+	var carved: Dictionary = {}
 	
-	if abs(big_caves_a) < big_threshold and abs(big_caves_b) < big_threshold:
-		##print("Carving at y: ", world_y)
-		return true
-	if abs(long_caves_a) < long_threshold and abs(long_caves_b) < long_threshold:
-		return true
-	return false
+	# Seed worm start points from the chunk's world origin
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash(world_origin)
+	
+	for _i in range(worm_count):
+		# Pick a random start position somewhere in this chunk's column
+		var start_x: float = world_origin.x + rng.randi_range(0, chunk_size - 1)
+		var start_z: float = world_origin.z + rng.randi_range(0, chunk_size - 1)
+		# Start the worm somewhere in the lower half of the chunk height
+		var start_y: float = world_origin.y + rng.randi_range(2, chunk_height / 2)
+
+		var pos := Vector3(start_x, start_y, start_z)
+
+		# The worm's current walking direction (a unit-ish vector we steer each step)
+		var dir := Vector3(
+			rng.randf_range(-1.0, 1.0),
+			rng.randf_range(-0.3, 0.3), # Bias horizontal so caves don't go straight up
+			rng.randf_range(-1.0, 1.0)
+		).normalized()
+
+		for _step in range(worm_steps):
+			var world_pos_i := Vector3i(int(round(pos.x)), int(round(pos.y)), int(round(pos.z)))
+
+			# Look up the surface height for this XZ column (if we have it)
+			var local_x: int = world_pos_i.x - int(world_origin.x)
+			var local_z: int = world_pos_i.z - int(world_origin.z)
+			var surface_y: int = surface_height_map.get(Vector2i(local_x, local_z), 9999)
+
+			# Suppress worms that get too close to the surface
+			if world_pos_i.y >= surface_y - cave_surface_margin:
+				break
+
+			# Carve a small sphere of radius 'worm_radius' around the worm's head
+			for dx in range(-worm_radius, worm_radius + 1):
+				for dy in range(-worm_radius, worm_radius + 1):
+					for dz in range(-worm_radius, worm_radius + 1):
+						if dx*dx + dy*dy + dz*dz <= worm_radius * worm_radius:
+							carved[world_pos_i + Vector3i(dx, dy, dz)] = true
+
+			# Steer the worm: sample noise at current position to nudge the direction
+			var nx: float = steering_noise.get_noise_3d(pos.x, pos.y, pos.z)
+			var ny: float = steering_noise.get_noise_3d(pos.x + 100.0, pos.y, pos.z + 100.0)
+			var nz: float = steering_noise.get_noise_3d(pos.x + 200.0, pos.y, pos.z + 200.0)
+
+			var steer := Vector3(nx, ny * 0.3, nz) # Dampen vertical steering
+			dir = (dir + steer * 0.4).normalized()
+			pos += dir
+
+	return carved
+
+#func carve_caves(global_pos: Vector3, world_y: float, big_cave_noise: Noise, long_cave_noise: Noise, surface_factor: float) -> bool:
+	## We currently have two types of cave systems: Big caves and Long caves. Big caves tend to be large open areas, long caves
+	## tend to be long, noodly caves.
+	#var big_caves_a = big_cave_noise.get_noise_3d(
+		#global_pos.x * big_cave_size,
+		#world_y * big_cave_size,
+		#global_pos.z * big_cave_size)
+	#var big_caves_b = big_cave_noise.get_noise_3d(
+		#global_pos.x * big_cave_size + 100.0,
+		#world_y * big_cave_size,
+		#global_pos.z * big_cave_size + 100.0)
+	#var long_caves_a = long_cave_noise.get_noise_3d(
+		#global_pos.x * long_cave_size,
+		#world_y * long_cave_size,
+		#global_pos.z * long_cave_size)
+	#var long_caves_b = long_cave_noise.get_noise_3d(
+		#global_pos.x * long_cave_size + 100.0,
+		#world_y * long_cave_size,
+		#global_pos.z * long_cave_size + 100.0)
+		#
+	#var big_threshold = big_cave_density * surface_factor
+	#var long_threshold = long_cave_density * surface_factor
+	#
+	#if abs(big_caves_a) < big_threshold and abs(big_caves_b) < big_threshold:
+		###print("Carving at y: ", world_y)
+		#return true
+	#if abs(long_caves_a) < long_threshold and abs(long_caves_b) < long_threshold:
+		#return true
+	#return false
 
 func get_bedrock_height(global_pos: Vector3, heightmap_noise: Noise) -> int:
 	var bedrock_noise = heightmap_noise.get_noise_2d(
@@ -135,14 +186,7 @@ func get_bedrock_height(global_pos: Vector3, heightmap_noise: Noise) -> int:
 
 # This function determines the position of each block in a given chunk. I believe this is where we
 # need to record the location of each block, perhaps in a dictionary?
-func generate_data(chunk_size: int, chunk_height: int, heightmap_noise: Noise, big_cave_noise: Noise, long_cave_noise: Noise)  -> void:
-	# Apply any cross-chunk structure blocks registered for this chunk
-	var ccs_blocks: Array = EventBus.world_manager.claim_ccs(chunks_key)
-	#if not ccs_blocks.is_empty():
-		#print("Chunk ", chunks_key, " claimed ", ccs_blocks.size(), " CCS blocks")
-	for entry in ccs_blocks:
-		voxels[entry["world_pos"] - Vector3i(int(world_origin.x), int(world_origin.y), int(world_origin.z))] = entry["block"]
-	
+func generate_data(chunk_size: int, chunk_height: int, heightmap_noise: Noise, worm_steering_noise: FastNoiseLite)  -> void:
 	# Define block types you'll need to refer to by name. Set them to 0 just in case something gets
 	# messed up, then look for them by value.
 	#var blocks = get_block_types(block_types)
@@ -155,68 +199,65 @@ func generate_data(chunk_size: int, chunk_height: int, heightmap_noise: Noise, b
 		#print("WARNING: missing block types, skipping generation")
 		return
 
+	var surface_heights: Dictionary = {}   # Vector2i(local_x, local_z) -> int world_y
+	# Determine the surface height for every column in this chunk
 	for x in range(chunk_size):
 		for z in range(chunk_size):
 			# Global XZ of this column
-			var global_pos_x: float = world_origin.x + x # Needs to be a float because we use float math for the noise below.
-			var global_pos_z: float = world_origin.z + z
+			var global_x: float = world_origin.x + x # Needs to be a float because we use float math for the noise below.
+			var global_z: float = world_origin.z + z
 	
 			# This is the formula we use to generate the shape of our terrain. The three
 			# get_noise_2ds act as 3 different octaves; the first generates large hills and valleys,
 			# the second adds medium details, and the third adds fine detail.
 			# The stuff on the ends of the lines ( +0.5, +0.25, etc) determine the steepness of these details.
 			var rand: float = ((
-				heightmap_noise.get_noise_2d(global_pos_x, global_pos_z) + 0.6 * 
-				heightmap_noise.get_noise_2d(global_pos_x * 2, global_pos_z * 2) + 0.25 * 
-				heightmap_noise.get_noise_2d(global_pos_x * 4, global_pos_z * 4)
+				heightmap_noise.get_noise_2d(global_x, global_z) + 0.6 * 
+				heightmap_noise.get_noise_2d(global_x * 2, global_z * 2) + 0.25 * 
+				heightmap_noise.get_noise_2d(global_x * 4, global_z * 4)
 				) / 1.75)
 			
 			const sea_level = Settings.sea_level
 			const terrain_amplitude: int = 24
-			
 			# This is the surface height of this column.
-			var surface_height: int = sea_level + int(rand * terrain_amplitude)
+			surface_heights[Vector2i(x, z)] = sea_level + int(rand * terrain_amplitude)
 			
-			# Dirt depth for this column
-			var dirt_depth: int = int(
-				heightmap_noise.get_noise_2d(
-					global_pos_x * 0.3,
-					global_pos_z * 0.3
-					) * 1.5)
-			
-			# Bedrock depth for this column
+	# Walk Perlin Worms and collect carved positions
+	var cave_set: Dictionary = perlin_worm_cave_gen(
+		chunk_size, chunk_height, surface_heights, worm_steering_noise)
+
+	# Place voxels (same as before, but use cave_set instead of carve_caves())
+	for x in range(chunk_size):
+		for z in range(chunk_size):
+			var global_x: float = world_origin.x + x
+			var global_z: float = world_origin.z + z
+			var surface_height: int = surface_heights[Vector2i(x, z)]
+
+			var dirt_depth: int = 3 + int((heightmap_noise.get_noise_2d(global_x * 0.3,global_z * 0.3) + 1.0) * 1.5)
 			var bedrock_height: int = int((
-					heightmap_noise.get_noise_2d(
-					global_pos_x * 0.5,
-					global_pos_z * 0.5
-					) + 1 ) / 2.3) + 1
-			
+				heightmap_noise.get_noise_2d(global_x * 0.5, global_z * 0.5) + 1) / 2.3) + 1
+
 			for y in range(chunk_height):
 				var world_y: int = int(world_origin.y) + y
-			
-				# Air, skip
 				if world_y >= surface_height:
-					continue # This might mess up trees and structures?
-				
+					continue
+
 				var block_to_place = BlockType
-				
-				if world_y <= bedrock_height: # Bedrock layer
+				if world_y <= bedrock_height:
 					block_to_place = bedrock
-				elif world_y == surface_height - 1: # Surface block
+				elif world_y == surface_height - 1:
 					block_to_place = grass
-				elif world_y >= surface_height - dirt_depth: # Dirt layer
+				elif world_y >= surface_height - dirt_depth:
 					block_to_place = dirt
-				else: block_to_place = default_block # Everything else is stone
-				
-				# Handling Caves; skip bedrock
+				else:
+					block_to_place = default_block
+
+				# Check cave set — skip bedrock
 				if block_to_place != bedrock:
-					var surface_factor: float = clamp(
-						float(surface_height - world_y) / cave_surface_margin,
-						0.2, 1.0)
-					if carve_caves(Vector3(global_pos_x, world_y, global_pos_z),
-					world_y, big_cave_noise, long_cave_noise, surface_factor):
+					var world_pos_i := Vector3i(int(global_x), world_y, int(global_z))
+					if cave_set.has(world_pos_i):
 						continue
-						
+
 				voxels[Vector3i(x, y, z)] = block_to_place
 				
 	# Build heightmap after all voxels are placed
@@ -228,117 +269,50 @@ func generate_data(chunk_size: int, chunk_height: int, heightmap_noise: Noise, b
 			heightmap[x][z] = -1
 			for y in range(chunk_height - 1, -1, -1):
 				if voxels.has(Vector3i(x, y, z)):
+					# Temporary debug print
+					if chunks_key == Vector3i(1, 0, 1) and x == 0 and z == 4:
+						print("heightmap (1,0,1) x=0 z=4: local y=", y, " world_origin.y=", world_origin.y, " result=", int(world_origin.y) + y + 1)
+					heightmap[x][z] = int(world_origin.y) + y + 1
 					# Store global Y of the air block above this surface block
 					heightmap[x][z] = int(world_origin.y) + y + 1
 					break
-	
-	
-	# Tree generation pass — runs after heightmap is built
-	for x in range(chunk_size):
-		for z in range(chunk_size):
-			var surface_y: int = heightmap[x][z]
-			if surface_y == -1:
-				continue
-
-			# Only place trees on grass blocks
-			var surface_block_pos: Vector3i = Vector3i(x, surface_y - 1 - int(world_origin.y), z)
-			if not voxels.has(surface_block_pos):
-				continue
-			if voxels[surface_block_pos] != BlockRegistry.get_block("grass"):
-				continue
-
-			var world_x: int = int(world_origin.x) + x
-			var world_z: int = int(world_origin.z) + z
-
-			if not TreeGenerator.should_place_tree(world_x, world_z, world_seed):
-				continue
-
-			# Pick species using weighted selection across all registered tree types
-			var total_weight: int = 0
-			for t in tree_types:
-				total_weight += t.spawn_weight
-
-			var species_hash: int = abs(hash(Vector3i(world_x, world_seed + 1, world_z)))
-			var roll: int = species_hash % total_weight
-			var chosen: TreeType = tree_types[0]
-			var cumulative: int = 0
-			for t in tree_types:
-				cumulative += t.spawn_weight
-				if roll < cumulative:
-					chosen = t
-					break
-
-			var tree_blocks: Dictionary = TreeGenerator.generate_tree(
-				chosen, surface_y, world_x, world_z,
-				voxels, world_origin, chunk_size, chunk_height)
-
-			if tree_blocks.is_empty():
-				continue
-
-			# Sort blocks into local (this chunk) and adjacent (neighboring chunks)
-			for world_pos: Vector3i in tree_blocks:
-				var local_pos: Vector3i = world_pos - Vector3i(int(world_origin.x), int(world_origin.y), int(world_origin.z))
-				if local_pos.x >= 0 and local_pos.x < chunk_size and \
-						local_pos.y >= 0 and local_pos.y < chunk_height and \
-						local_pos.z >= 0 and local_pos.z < chunk_size:
-					voxels[local_pos] = tree_blocks[world_pos]
-				else:
-					#print("Sending to CCS: world_pos=", world_pos, " chunk position=", world_origin)
-					EventBus.world_manager.register_ccs(world_pos, tree_blocks[world_pos])
 			 
 func generate_mesh() -> void:
 	if voxels.is_empty(): return
+	#print("generate_mesh: voxels.size()=", voxels.size(), " chunk_key=", chunks_key)
 	var start_time = Time.get_ticks_usec()
+	var skipped: int = 0
+	var processed: int = 0
 	var local_add_face_count: int = 0
 	var local_add_face_total: int = 0
 	
-	## Time greedy mesh separately
-	#var t_greedy: int = Time.get_ticks_usec()
-	## Opaque blocks use the GreedyMesh class
-	#GreedyMesh.mesh(voxels, vertices, normals, uvs, uv2s, number_of_textures_in_atlas)
-	#stat_greedy_mesh_us = Time.get_ticks_usec() - t_greedy
-	
+	regen_mutex.lock()
+	var voxel_snapshot: Dictionary = voxels.duplicate()
+	regen_mutex.unlock()
+
 	var t_perface: int = Time.get_ticks_usec()
-	for pos in voxels:
-		var block_type = voxels[pos]
+	for pos in voxel_snapshot:
+		var block_type = voxel_snapshot[pos]
 		if block_type.is_transparent:
 			continue
-		if not should_hide_face(pos, Vector3i(pos.x, pos.y, pos.z + 1), block_type):
+		if _is_fully_enclosed(pos, voxel_snapshot):
+			skipped += 1
+			continue
+		processed += 1
+		if not should_hide_face_snapshot(pos, Vector3i(pos.x, pos.y, pos.z + 1), block_type, voxel_snapshot):
 			add_face(Cube.Face.FRONT, pos, block_type)
-		if not should_hide_face(pos, Vector3i(pos.x, pos.y, pos.z - 1), block_type):
+		if not should_hide_face_snapshot(pos, Vector3i(pos.x, pos.y, pos.z - 1), block_type, voxel_snapshot):
 			add_face(Cube.Face.BACK, pos, block_type)
-		if not should_hide_face(pos, Vector3i(pos.x - 1, pos.y, pos.z), block_type):
+		if not should_hide_face_snapshot(pos, Vector3i(pos.x - 1, pos.y, pos.z), block_type, voxel_snapshot):
 			add_face(Cube.Face.LEFT, pos, block_type)
-		if not should_hide_face(pos, Vector3i(pos.x + 1, pos.y, pos.z), block_type):
+		if not should_hide_face_snapshot(pos, Vector3i(pos.x + 1, pos.y, pos.z), block_type, voxel_snapshot):
 			add_face(Cube.Face.RIGHT, pos, block_type)
-		if not should_hide_face(pos, Vector3i(pos.x, pos.y + 1, pos.z), block_type):
+		if not should_hide_face_snapshot(pos, Vector3i(pos.x, pos.y + 1, pos.z), block_type, voxel_snapshot):
 			add_face(Cube.Face.TOP, pos, block_type)
-		if not should_hide_face(pos, Vector3i(pos.x, pos.y - 1, pos.z), block_type):
+		if not should_hide_face_snapshot(pos, Vector3i(pos.x, pos.y - 1, pos.z), block_type, voxel_snapshot):
 			add_face(Cube.Face.BOTTOM, pos, block_type)
 	stat_perface_mesh_us = Time.get_ticks_usec() - t_perface
-	
-	#var t_greedy: int = Time.get_ticks_usec()
-	#for pos in voxels:
-		#var block_type: BlockType = voxels[pos]
-		#if block_type.is_transparent:
-			#continue
-		#var neighbors: Array = [
-			#Vector3i(pos.x, pos.y, pos.z + 1),
-			#Vector3i(pos.x, pos.y, pos.z - 1),
-			#Vector3i(pos.x - 1, pos.y, pos.z),
-			#Vector3i(pos.x + 1, pos.y, pos.z),
-			#Vector3i(pos.x, pos.y + 1, pos.z),
-			#Vector3i(pos.x, pos.y - 1, pos.z),
-		#]
-		#var faces: Array = [
-			#Cube.Face.FRONT, Cube.Face.BACK,
-			#Cube.Face.LEFT, Cube.Face.RIGHT,
-			#Cube.Face.TOP, Cube.Face.BOTTOM,
-		#]
-		#for i in 6:
-			#if not should_hide_face(pos, neighbors[i], block_type):
-				#add_face(faces[i], pos, block_type)
-	#stat_greedy_mesh_us = Time.get_ticks_usec() - t_greedy
+	#print(Time.get_ticks_msec(), "generate_mesh: chunk=", chunks_key, " total=", voxel_snapshot.size(), " skipped=", skipped, " processed=", processed, " time=", (Time.get_ticks_usec() - start_time) / 1000.0, "ms")
 
 	# Time transparent mesh separately
 	var t_transparent: int = Time.get_ticks_usec()
@@ -367,6 +341,89 @@ func generate_mesh() -> void:
 	stat_add_face_us = local_add_face_total
 	stat_add_face_count = local_add_face_count
 
+func _is_fully_enclosed(pos: Vector3i, snapshot: Dictionary) -> bool:
+	var neighbors := [
+		Vector3i(pos.x+1, pos.y, pos.z), Vector3i(pos.x-1, pos.y, pos.z),
+		Vector3i(pos.x, pos.y+1, pos.z), Vector3i(pos.x, pos.y-1, pos.z),
+		Vector3i(pos.x, pos.y, pos.z+1), Vector3i(pos.x, pos.y, pos.z-1)
+	]
+	for n in neighbors:
+		if not snapshot.has(n):
+			return false
+		if snapshot[n].is_transparent:
+			return false
+	return true
+
+func generate_features(all_voxels: Dictionary) -> void:
+	# all_voxels: Dictionary[Vector3i, Dictionary[Vector3i, BlockType]]
+	# Maps chunk_key -> that chunk's voxel dictionary (including this chunk's own)
+	# This function writes tree blocks directly into whichever chunk they belong to.
+
+	var chunk_size: int = Settings.chunk_size
+	var chunk_height: int = Settings.chunk_height
+
+	for x in range(chunk_size):
+		for z in range(chunk_size):
+			var surface_y: int = heightmap[x][z]
+			if surface_y == -1:
+				continue
+
+			# Only place trees on grass blocks
+			var surface_block_pos: Vector3i = Vector3i(x, surface_y - 1 - int(world_origin.y), z)
+			if not voxels.has(surface_block_pos):
+				continue
+			if voxels[surface_block_pos] != BlockRegistry.get_block("grass"):
+				continue
+
+			var world_x: int = int(world_origin.x) + x
+			var world_z: int = int(world_origin.z) + z
+
+			if not TreeGenerator.should_place_tree(world_x, world_z, world_seed):
+				continue
+
+			# Pick tree species
+			var total_weight: int = 0
+			for t in tree_types:
+				total_weight += t.spawn_weight
+			if total_weight == 0:
+				continue
+
+			var species_hash: int = abs(hash(Vector3i(world_x, world_seed + 1, world_z)))
+			var roll: int = species_hash % total_weight
+			var chosen: TreeType = tree_types[0]
+			var cumulative: int = 0
+			for t in tree_types:
+				cumulative += t.spawn_weight
+				if roll < cumulative:
+					chosen = t
+					break
+
+			var tree_blocks: Dictionary = TreeGenerator.generate_tree(
+				chosen, surface_y, world_x, world_z,
+				voxels, world_origin, chunk_size, chunk_height)
+
+			if tree_blocks.is_empty():
+				continue
+
+			# Distribute tree blocks to whichever chunk each block belongs to
+			for world_pos: Vector3i in tree_blocks:
+				var target_chunk_x: int = int(floor(float(world_pos.x) / chunk_size))
+				var target_chunk_y: int = int(floor(float(world_pos.y) / chunk_height))
+				var target_chunk_z: int = int(floor(float(world_pos.z) / chunk_size))
+				var target_key: Vector3i = Vector3i(target_chunk_x, target_chunk_y, target_chunk_z)
+
+				if not all_voxels.has(target_key):
+					# Target chunk not available — shouldn't happen if gate is correct,
+					# but skip gracefully rather than crash
+					continue
+
+				var local_pos: Vector3i = Vector3i(
+					world_pos.x - target_chunk_x * chunk_size,
+					world_pos.y - target_chunk_y * chunk_height,
+					world_pos.z - target_chunk_z * chunk_size)
+
+				all_voxels[target_key][local_pos] = tree_blocks[world_pos]
+
 func should_hide_face(_pos: Vector3i, neighbor_pos: Vector3i, current_block: BlockType) -> bool:
 	if not voxels.has(neighbor_pos):
 		return false  # Skip faces with no neighbors
@@ -377,7 +434,17 @@ func should_hide_face(_pos: Vector3i, neighbor_pos: Vector3i, current_block: Blo
 	if neighbor.is_transparent and current_block.is_transparent:
 		return neighbor == current_block  # This culls the face ONLY if both blocks are the same.
 	return true  # Neighbor is opaque,cull.
-
+	
+func should_hide_face_snapshot(_pos: Vector3i, neighbor_pos: Vector3i, current_block: BlockType, snapshot: Dictionary) -> bool:
+	if not snapshot.has(neighbor_pos):
+		return false
+	var neighbor = snapshot[neighbor_pos]
+	if neighbor.is_transparent and not current_block.is_transparent:
+		return false
+	if neighbor.is_transparent and current_block.is_transparent:
+		return neighbor == current_block
+	return true
+	
 func add_face(face: Cube.Face, pos: Vector3i, block: BlockType) -> void:
 	var offset: Vector3 = Vector3(pos)
 	var base_verts: PackedVector3Array = Cube.precomp_vertices[face]

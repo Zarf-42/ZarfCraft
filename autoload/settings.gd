@@ -5,7 +5,7 @@ extends Node
 
 
 const chunk_size: int = 16
-const chunk_height: int = 16
+const chunk_height: int = 288
 const world_height: int = 288 # Defines the world's height in Blocks, not chunks
 const sea_level: int = 160 # This is Y-altitude, not chunks
 const chunk_collision_radius: int = 1  # Chunks around the player that get collision meshes (XZ only, all vertical layers)
@@ -15,7 +15,7 @@ var mouse_mode = Input.MOUSE_MODE_CAPTURED # Prevents the mouse from exiting the
 
 var threads: Array = []
 
-@export var chunk_render_distance: int = 4 # Currently, this is how far out we generate chunks, not
+@export var chunk_render_distance: int = 12 # Currently, this is how far out we generate chunks, not
 	# the render distance.
 @export var mouse_sensitivity: float = 0.27 # This is used as a multiplier somewhere, I think.
 @export var single_threaded: bool = false # Set this to true if you want to use only one thread.
